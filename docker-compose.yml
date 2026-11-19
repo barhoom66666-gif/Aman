@@ -1,0 +1,15 @@
+services:
+  najwa:
+    build: ./server
+    restart: unless-stopped
+    environment:
+      PORT: 8080
+      DATA_DIR: /data
+      MAX_MEDIA_BYTES: 26214400
+    volumes:
+      - najwa-data:/data
+    ports:
+      - "8080:8080"
+
+volumes:
+  najwa-data:

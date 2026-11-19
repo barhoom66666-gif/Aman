@@ -1,0 +1,28 @@
+# Node
+node_modules/
+server/data/
+*.db
+*.db-wal
+*.db-shm
+
+# Flutter / Dart
+app/.dart_tool/
+app/build/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/android/local.properties
+app/android/.gradle/
+app/android/key.properties
+*.jks
+*.keystore
+
+# Secrets
+.env
+.env.local
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+*.iml
+*.log
