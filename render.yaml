@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: aman-server
+    runtime: docker
+    plan: free
+    region: frankfurt
+    branch: main
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: DATA_DIR
+        value: /data
+      - key: MAX_MEDIA_BYTES
+        value: "26214400"
+
+    # لتخزين دائم للرسائل (يتطلب خطة مدفوعة 7$/شهر):
+    # disk:
+    #   name: aman-data
+    #   mountPath: /data
+    #   sizeGB: 1
