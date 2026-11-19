@@ -8,7 +8,7 @@ import { Hub, attachWebSocket } from './ws.js';
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const DATA_DIR = process.env.DATA_DIR || path.resolve(process.cwd(), 'data');
-const DB_FILE = process.env.DB_FILE || path.join(DATA_DIR, 'najwa.db');
+const DB_FILE = process.env.DB_FILE || path.join(DATA_DIR, 'aman.db');
 const MEDIA_DIR = process.env.MEDIA_DIR || path.join(DATA_DIR, 'media');
 const MAX_MEDIA_BYTES = Number(process.env.MAX_MEDIA_BYTES || 25 * 1024 * 1024);
 
@@ -45,7 +45,7 @@ app.use('/api/auth', (req, res, next) => {
 });
 
 app.use(express.json({ limit: '512kb' }));
-app.get('/health', (_req, res) => res.json({ ok: true, service: 'najwa', time: Date.now() }));
+app.get('/health', (_req, res) => res.json({ ok: true, service: 'aman', time: Date.now() }));
 app.use('/api', createRouter({ db, hub, mediaDir: MEDIA_DIR, maxMediaBytes: MAX_MEDIA_BYTES }));
 
 app.use((req, res) => {
@@ -55,7 +55,7 @@ app.use((req, res) => {
 app.use((err, _req, res, _next) => {
   const status = err.status || (err.type === 'entity.too.large' ? 413 : 500);
   const code = err.code || (status === 413 ? 'too_large' : 'server_error');
-  if (status >= 500) console.error('[najwa]', err);
+  if (status >= 500) console.error('[aman]', err);
   res.status(status).json({ error: code, message: err.message || 'خطأ غير متوقع' });
 });
 
@@ -63,11 +63,11 @@ const server = http.createServer(app);
 attachWebSocket(server, db, hub);
 
 server.listen(PORT, HOST, () => {
-  console.log(`[najwa] يعمل على http://${HOST}:${PORT}  (بيانات: ${DATA_DIR})`);
+  console.log(`[aman] يعمل على http://${HOST}:${PORT}  (بيانات: ${DATA_DIR})`);
 });
 
 function shutdown() {
-  console.log('[najwa] إيقاف...');
+  console.log('[aman] إيقاف...');
   server.close(() => {
     db.close();
     process.exit(0);

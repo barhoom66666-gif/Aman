@@ -1,5 +1,5 @@
 services:
-  najwa:
+  aman:
     build: ./server
     restart: unless-stopped
     environment:
@@ -7,9 +7,9 @@ services:
       DATA_DIR: /data
       MAX_MEDIA_BYTES: 26214400
     volumes:
-      - najwa-data:/data
+      - aman-data:/data
     ports:
       - "8080:8080"
 
 volumes:
-  najwa-data:
+  aman-data:

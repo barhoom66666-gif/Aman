@@ -1,4 +1,4 @@
-package app.najwa.messenger
+package app.aman.messenger
 
 import io.flutter.embedding.android.FlutterActivity
 

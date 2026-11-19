@@ -11,8 +11,8 @@ RUN npm install --omit=dev --no-audit --no-fund
 
 COPY src ./src
 
-RUN mkdir -p /data && useradd --system --uid 10001 najwa && chown -R najwa:najwa /data /app
-USER najwa
+RUN mkdir -p /data && useradd --system --uid 10001 aman && chown -R aman:aman /data /app
+USER aman
 
 VOLUME ["/data"]
 EXPOSE 8080

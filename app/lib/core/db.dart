@@ -13,7 +13,7 @@ class LocalDb {
     if (_db != null) return _db!;
     final dir = await getDatabasesPath();
     _db = await openDatabase(
-      p.join(dir, 'najwa.db'),
+      p.join(dir, 'aman.db'),
       version: 1,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: (db, version) async {

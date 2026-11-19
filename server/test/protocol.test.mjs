@@ -8,7 +8,7 @@ import path from 'node:path';
 
 const PORT = 18000 + Math.floor(Math.random() * 1000);
 const BASE = `http://127.0.0.1:${PORT}`;
-const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'najwa-test-'));
+const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'aman-test-'));
 let child;
 
 // ---------- crypto helpers (same scheme as the Flutter client) ----------
@@ -50,8 +50,8 @@ function seal({ chatId, senderId, recipientId, recipientPubRaw, plaintext, kind 
   });
   const salt = crypto.randomBytes(16);
   const nonce = crypto.randomBytes(12);
-  const info = kind === 'pairwise' ? 'najwa/v1/pairwise' : 'najwa/v1/groupkey';
-  const aad = `najwa/v1|${chatId}|${senderId}|${recipientId}`;
+  const info = kind === 'pairwise' ? 'aman/v1/pairwise' : 'aman/v1/groupkey';
+  const aad = `aman/v1|${chatId}|${senderId}|${recipientId}`;
   const key = deriveKey(shared, salt, info);
   const cipher = crypto.createCipheriv('aes-256-gcm', key, nonce);
   cipher.setAAD(Buffer.from(aad));
@@ -72,9 +72,9 @@ function open({ chatId, senderId, recipientId, myPrivRaw, envelope, kind = 'pair
     privateKey: importPrivate(myPrivRaw),
     publicKey: importPublic(Buffer.from(envelope.epk, 'base64')),
   });
-  const info = kind === 'pairwise' ? 'najwa/v1/pairwise' : 'najwa/v1/groupkey';
+  const info = kind === 'pairwise' ? 'aman/v1/pairwise' : 'aman/v1/groupkey';
   const key = deriveKey(shared, Buffer.from(envelope.salt, 'base64'), info);
-  const aad = `najwa/v1|${chatId}|${senderId}|${recipientId}`;
+  const aad = `aman/v1|${chatId}|${senderId}|${recipientId}`;
   const raw = Buffer.from(envelope.ct, 'base64');
   const tag = raw.subarray(-16);
   const ct = raw.subarray(0, -16);
@@ -88,7 +88,7 @@ let groupKeySeq = 0;
 function sealGroupMessage({ chatId, epoch, senderId, groupKey, plaintext }) {
   const nonce = crypto.randomBytes(12);
   groupKeySeq += 1;
-  const aad = `najwa/v1/group|${chatId}|${epoch}|${senderId}`;
+  const aad = `aman/v1/group|${chatId}|${epoch}|${senderId}`;
   const cipher = crypto.createCipheriv('aes-256-gcm', groupKey, nonce);
   cipher.setAAD(Buffer.from(aad));
   const ct = Buffer.concat([cipher.update(Buffer.from(plaintext)), cipher.final(), cipher.getAuthTag()]);
@@ -100,7 +100,7 @@ function openGroupMessage({ chatId, epoch, senderId, groupKey, envelope }) {
   const tag = raw.subarray(-16);
   const ct = raw.subarray(0, -16);
   const decipher = crypto.createDecipheriv('aes-256-gcm', groupKey, Buffer.from(envelope.nonce, 'base64'));
-  decipher.setAAD(Buffer.from(`najwa/v1/group|${chatId}|${epoch}|${senderId}`));
+  decipher.setAAD(Buffer.from(`aman/v1/group|${chatId}|${epoch}|${senderId}`));
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(ct), decipher.final()]);
 }

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../utils.dart';
 
-class NajwaLogo extends StatelessWidget {
-  const NajwaLogo({super.key, this.size = 88, this.color});
+class AmanLogo extends StatelessWidget {
+  const AmanLogo({super.key, this.size = 88, this.color});
 
   final double size;
   final Color? color;

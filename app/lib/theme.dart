@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// ألوان فقاعات المحادثة المستقلة عن ColorScheme، حتى يبقى الوضع الفاتح
-/// بهوية نجوى التركوازية ويأخذ الوضع الداكن لوحة الأخضر الداكن.
+/// بهوية Aman التركوازية ويأخذ الوضع الداكن لوحة الأخضر الداكن.
 @immutable
 class ChatColors extends ThemeExtension<ChatColors> {
   const ChatColors({

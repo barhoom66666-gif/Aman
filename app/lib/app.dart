@@ -8,13 +8,13 @@ import 'screens/splash_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'theme.dart';
 
-class NajwaApp extends StatelessWidget {
-  const NajwaApp({super.key});
+class AmanApp extends StatelessWidget {
+  const AmanApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'نجوى',
+      title: 'Aman',
       debugShowCheckedModeBanner: false,
       locale: const Locale('ar'),
       supportedLocales: const [Locale('ar'), Locale('en')],

@@ -220,7 +220,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Center(
             child: Column(
               children: [
-                Text('نجوى 0.1.0', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                Text('Aman 0.1.0', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
                 const SizedBox(height: 4),
                 Text(
                   'لا مكالمات · لا إعلانات · لا تتبّع',

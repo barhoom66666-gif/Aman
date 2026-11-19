@@ -25,7 +25,7 @@ class ChatsScreen extends StatelessWidget {
         title: Row(
           children: [
             Avatar(
-              name: me?.displayName ?? 'نجوى',
+              name: me?.displayName ?? 'مستخدم',
               color: me?.avatarColor ?? '#0E9F9A',
               size: 38,
             ),
@@ -33,7 +33,7 @@ class ChatsScreen extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('نجوى'),
+                const Text('Aman'),
                 Row(
                   children: [
                     Icon(Icons.lock_rounded, size: 11, color: Theme.of(context).colorScheme.primary),

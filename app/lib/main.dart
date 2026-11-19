@@ -7,6 +7,6 @@ import 'core/session.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   final session = Session();
-  runApp(ChangeNotifierProvider<Session>.value(value: session, child: const NajwaApp()));
+  runApp(ChangeNotifierProvider<Session>.value(value: session, child: const AmanApp()));
   session.init();
 }

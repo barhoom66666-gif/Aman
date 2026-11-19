@@ -12,10 +12,10 @@ class SplashScreen extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const NajwaLogo(size: 96),
+            const AmanLogo(size: 96),
             const SizedBox(height: 22),
             Text(
-              'نجوى',
+              'Aman',
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 26),

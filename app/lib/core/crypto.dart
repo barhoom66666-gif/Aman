@@ -21,8 +21,8 @@ class CryptoService {
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
   );
 
-  static const String pairwiseInfo = 'najwa/v1/pairwise';
-  static const String groupKeyInfo = 'najwa/v1/groupkey';
+  static const String pairwiseInfo = 'aman/v1/pairwise';
+  static const String groupKeyInfo = 'aman/v1/groupkey';
 
   static final X25519 _x25519 = X25519();
   static final AesGcm _aes = AesGcm.with256bits();
@@ -51,10 +51,10 @@ class CryptoService {
       final pub = await _identity!.extractPublicKey();
       return b64(pub.bytes);
     }
-    var seedB64 = await _storage.read(key: 'najwa.identity_seed');
+    var seedB64 = await _storage.read(key: 'aman.identity_seed');
     if (seedB64 == null || seedB64.isEmpty) {
       seedB64 = b64(randomBytes(32));
-      await _storage.write(key: 'najwa.identity_seed', value: seedB64);
+      await _storage.write(key: 'aman.identity_seed', value: seedB64);
     }
     final seed = fromB64(seedB64);
     final pair = await _x25519.newKeyPairFromSeed(seed);
@@ -79,11 +79,11 @@ class CryptoService {
 
   static Future<void> wipeIdentity() async {
     _identity = null;
-    await _storage.delete(key: 'najwa.identity_seed');
+    await _storage.delete(key: 'aman.identity_seed');
   }
 
   static String _aad(String chatId, String senderId, String recipientId) =>
-      'najwa/v1|$chatId|$senderId|$recipientId';
+      'aman/v1|$chatId|$senderId|$recipientId';
 
   /// يشفّر بيانات لمستلم واحد (رسالة فردية أو مفتاح مجموعة).
   static Future<Map<String, dynamic>> seal({
@@ -165,7 +165,7 @@ class CryptoService {
   static Uint8List newGroupKey() => randomBytes(32);
 
   static List<int> _groupAad(String chatId, int epoch, String senderId) =>
-      utf8.encode('najwa/v1/group|$chatId|$epoch|$senderId');
+      utf8.encode('aman/v1/group|$chatId|$epoch|$senderId');
 
   static Future<Map<String, dynamic>> sealGroupMessage({
     required String chatId,
@@ -242,10 +242,10 @@ class CryptoService {
 
   static Future<Uint8List> _deviceKeyOrCreate() async {
     if (_deviceKey != null) return _deviceKey!;
-    var stored = await _storage.read(key: 'najwa.device_key');
+    var stored = await _storage.read(key: 'aman.device_key');
     if (stored == null || stored.isEmpty) {
       stored = b64(randomBytes(32));
-      await _storage.write(key: 'najwa.device_key', value: stored);
+      await _storage.write(key: 'aman.device_key', value: stored);
     }
     _deviceKey = fromB64(stored);
     return _deviceKey!;
@@ -258,7 +258,7 @@ class CryptoService {
       utf8.encode(plaintext),
       secretKey: SecretKey(key),
       nonce: nonce,
-      aad: utf8.encode('najwa/storage'),
+      aad: utf8.encode('aman/storage'),
     );
     return b64(nonce) + ':' + b64([...box.cipherText, ...box.mac.bytes]);
   }
@@ -276,7 +276,7 @@ class CryptoService {
     final clear = await _aes.decrypt(
       box,
       secretKey: SecretKey(key),
-      aad: utf8.encode('najwa/storage'),
+      aad: utf8.encode('aman/storage'),
     );
     return utf8.decode(clear);
   }

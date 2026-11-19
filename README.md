@@ -1,11 +1,11 @@
-# نجوى — مراسلة خاصة بلا مكالمات
+# Aman — مراسلة خاصة بلا مكالمات
 
 تطبيق مراسلة أندرويد (وقابل للتحويل إلى iOS لاحقًا) مستوحى من فكرة JERNAS:
 محادثات فردية وجماعية، صور وملفات، وتشفير من الطرف إلى الطرف — **بدون صوت أو فيديو**،
 وبدون إعلانات أو تتبّع.
 
 ```
-najwa/
+aman/
 ├── app/       تطبيق Flutter (أندرويد الآن، iOS لاحقًا بنفس الكود)
 ├── server/    خادم Node.js + WebSocket + SQLite
 ├── docs/      المعمارية وملاحظات الأمان
@@ -66,7 +66,7 @@ flutter run
   (نفس شبكة الواي فاي)، أو مرّر العنوان عند البناء:
 
 ```bash
-flutter build apk --release --dart-define=NAJWA_API=http://192.168.1.20:8080
+flutter build apk --release --dart-define=AMAN_API=http://192.168.1.20:8080
 ```
 
 الملف الناتج: `app/build/app/outputs/flutter-apk/app-release.apk`
@@ -74,7 +74,7 @@ flutter build apk --release --dart-define=NAJWA_API=http://192.168.1.20:8080
 ### 3) بناء APK بدون جهاز تطوير
 
 ارفع المشروع إلى GitHub ثم شغّل Workflow «Android CI» من تبويب Actions،
-وسيُنزّل الـ APK كـ Artifact. يمكن ضبط عنوان الخادم من متغيّر المستودع `NAJWA_API`.
+وسيُنزّل الـ APK كـ Artifact. يمكن ضبط عنوان الخادم من متغيّر المستودع `AMAN_API`.
 
 الدليل الكامل خطوة بخطوة (إنشاء المستودع، الرفع، التشغيل، تنزيل APK، والتوقيع لاحقًا):
 [`docs/GITHUB.md`](docs/GITHUB.md).
@@ -85,7 +85,7 @@ flutter build apk --release --dart-define=NAJWA_API=http://192.168.1.20:8080
 
 ```bash
 cd app
-flutter create --platforms=ios --org app.najwa --project-name najwa .
+flutter create --platforms=ios --org app.aman --project-name aman .
 cd ios && pod install
 flutter run -d ios
 ```

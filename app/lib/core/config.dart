@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 class AppConfig {
-  static const String _define = String.fromEnvironment('NAJWA_API', defaultValue: '');
+  static const String _define = String.fromEnvironment('AMAN_API', defaultValue: '');
   static String? _runtime;
 
   static String get defaultBase {

@@ -79,10 +79,10 @@ class _AuthScreenState extends State<AuthScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 8),
-                Center(child: NajwaLogo(size: 64)),
+                Center(child: AmanLogo(size: 64)),
                 const SizedBox(height: 22),
                 Text(
-                  _register ? 'انضم إلى نجوى' : 'أهلًا بعودتك',
+                  _register ? 'انضم إلى Aman' : 'أهلًا بعودتك',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                 ),

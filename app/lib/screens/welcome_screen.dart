@@ -27,10 +27,10 @@ class WelcomeScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Center(child: NajwaLogo(size: 96)),
+                    const Center(child: AmanLogo(size: 96)),
                     const SizedBox(height: 26),
                     Text(
-                      'نجوى',
+                      'Aman',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.displaySmall?.copyWith(
                             fontWeight: FontWeight.w800,

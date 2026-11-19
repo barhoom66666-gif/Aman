@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "app.najwa.messenger"
+    namespace = "app.aman.messenger"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -15,7 +15,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "app.najwa.messenger"
+        applicationId = "app.aman.messenger"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

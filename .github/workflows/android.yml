@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       api_url:
-        description: "عنوان خادم نجوى (اتركه فارغًا للافتراضي 10.0.2.2:8080)"
+        description: "عنوان خادم Aman (اتركه فارغًا للافتراضي 10.0.2.2:8080)"
         required: false
         default: ""
 
@@ -42,8 +42,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: server
     env:
-      # أولوية: مدخل التشغيل اليدوي، ثم متغير المستودع NAJWA_API، ثم افتراضي المحاكي.
-      NAJWA_API: ${{ inputs.api_url || vars.NAJWA_API || 'http://10.0.2.2:8080' }}
+      # أولوية: مدخل التشغيل اليدوي، ثم متغير المستودع AMAN_API، ثم افتراضي المحاكي.
+      AMAN_API: ${{ inputs.api_url || vars.AMAN_API || 'http://10.0.2.2:8080' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -68,24 +68,24 @@ jobs:
 
       - name: بناء APK
         working-directory: app
-        run: flutter build apk --release --dart-define=NAJWA_API="$NAJWA_API"
+        run: flutter build apk --release --dart-define=AMAN_API="$AMAN_API"
 
       - name: ملخص البناء
         run: |
           APK=app/build/app/outputs/flutter-apk/app-release.apk
           SIZE=$(du -h "$APK" | cut -f1)
           {
-            echo "### نجوى — تم بناء APK بنجاح"
+            echo "### Aman — تم بناء APK بنجاح"
             echo ""
             echo "- الحجم: **$SIZE**"
-            echo "- عنوان الخادم المضمّن: \`$NAJWA_API\`"
+            echo "- عنوان الخادم المضمّن: \`$AMAN_API\`"
             echo "- يمكن تغييره لاحقًا من داخل التطبيق (شاشة الترحيب أو الإعدادات)."
             echo "- التوقيع: مفتاح debug — للتجربة فقط."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: najwa-apk
+          name: aman-apk
           path: app/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 30

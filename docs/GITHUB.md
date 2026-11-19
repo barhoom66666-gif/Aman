@@ -10,14 +10,14 @@
 ## 1) أنشئ مستودعًا على GitHub
 
 1. افتح <https://github.com/new>.
-2. الاسم: `najwa` (أو أي اسم).
+2. الاسم: `aman` (أو أي اسم).
 3. اختر **Private** إن أردت إبقاء الكود خاصًا، أو **Public**.
 4. **لا تضف** README أو .gitignore أو License (المشروع يحتويها بالفعل).
 5. اضغط **Create repository** وانسخ رابط المستودع.
 
 ## 2) ارفع المشروع من جهازك
 
-افتح Terminal داخل مجلد المشروع `najwa` (المجلد الذي يحتوي `app/` و`server/`):
+افتح Terminal داخل مجلد المشروع `aman` (المجلد الذي يحتوي `app/` و`server/`):
 
 ```bash
 git init -b main
@@ -25,9 +25,9 @@ git config user.name "اسمك"
 git config user.email "بريدك@example.com"
 
 git add .
-git commit -m "نجوى: النسخة الأولى"
+git commit -m "Aman: النسخة الأولى"
 
-git remote add origin https://github.com/USERNAME/najwa.git
+git remote add origin https://github.com/USERNAME/aman.git
 git push -u origin main
 ```
 
@@ -53,7 +53,7 @@ git push -u origin main
 
 بعد انتهاء التشغيل الأخضر:
 
-- افتح صفحة التشغيل → قسم **Artifacts** → `najwa-apk.zip`.
+- افتح صفحة التشغيل → قسم **Artifacts** → `aman-apk.zip`.
 - فك الضغط → `app-release.apk` (حجمه نحو 20–25 ميجابايت).
 - الملف محفوظ في GitHub لمدة 30 يومًا.
 
@@ -61,7 +61,7 @@ git push -u origin main
 
 1. انقل `app-release.apk` إلى الهاتف (كابل، Google Drive، أو Telegram لنفسك).
 2. عند فتح الملف سيطلب أندرويد السماح بالتثبيت من هذا المصدر → اسمح.
-3. ثبّت وافتح «نجوى».
+3. ثبّت وافتح «Aman».
 4. عند أول تشغيل اضغط سطر **«الخادم: …»** وأدخل عنوان خادمك:
    - من محاكي أندرويد على نفس الكمبيوتر: `http://10.0.2.2:8080`
    - من هاتف على نفس شبكة الواي فاي: `http://IP-الكمبيوتر:8080`
@@ -75,7 +75,7 @@ git push -u origin main
 المستودع → **Settings** → **Secrets and variables** → **Actions** →
 تبويب **Variables** → **New repository variable**:
 
-- الاسم: `NAJWA_API`
+- الاسم: `AMAN_API`
 - القيمة: `http://192.168.1.20:8080`
 
 بعدها كل بناء جديد سيضمّن هذا العنوان، ويمكن للمستخدم تغييره من داخل التطبيق.
@@ -88,8 +88,8 @@ Google Play أو للتحديث فوق نسخة موقّعة بمفتاح آخر
 لإنشاء مفتاح إنتاج:
 
 ```bash
-keytool -genkey -v -keystore najwa-release.jks \
-  -keyalg RSA -keysize 2048 -validity 10000 -alias najwa
+keytool -genkey -v -keystore aman-release.jks \
+  -keyalg RSA -keysize 2048 -validity 10000 -alias aman
 ```
 
 أنشئ `app/android/key.properties` (مستثنى من git):
@@ -97,8 +97,8 @@ keytool -genkey -v -keystore najwa-release.jks \
 ```properties
 storePassword=كلمة-سر-المخزن
 keyPassword=كلمة-سر-المفتاح
-keyAlias=najwa
-storeFile=/المسار/الكامل/najwa-release.jks
+keyAlias=aman
+storeFile=/المسار/الكامل/aman-release.jks
 ```
 
 ثم عدّل `app/android/app/build.gradle.kts`:
@@ -156,7 +156,7 @@ android {
 ```bash
 cd app
 flutter pub get
-flutter build apk --release --dart-define=NAJWA_API=http://192.168.1.20:8080
+flutter build apk --release --dart-define=AMAN_API=http://192.168.1.20:8080
 # الناتج: build/app/outputs/flutter-apk/app-release.apk
 ```
 

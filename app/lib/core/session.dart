@@ -15,9 +15,9 @@ import 'config.dart';
 import 'crypto.dart';
 import 'db.dart';
 
-const _kToken = 'najwa.token';
-const _kUser = 'najwa.user';
-const _kServer = 'najwa.server';
+const _kToken = 'aman.token';
+const _kUser = 'aman.user';
+const _kServer = 'aman.server';
 
 class Session extends ChangeNotifier {
   static const _storage = FlutterSecureStorage(

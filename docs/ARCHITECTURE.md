@@ -31,8 +31,8 @@
 sender:
   (esk, epk) ← X25519.newKeyPair()
   shared     ← ECDH(esk, recipient_identity_pub)
-  key        ← HKDF-SHA256(shared, salt=16B, info="najwa/v1/pairwise", 32B)
-  ct         ← AES-256-GCM(key, nonce=12B, aad="najwa/v1|chatId|senderId|recipientId")
+  key        ← HKDF-SHA256(shared, salt=16B, info="aman/v1/pairwise", 32B)
+  ct         ← AES-256-GCM(key, nonce=12B, aad="aman/v1|chatId|senderId|recipientId")
   envelope   = {v:1, alg:"x25519-aesgcm", epk, salt, nonce, ct||tag}
 
 receiver:
@@ -52,12 +52,12 @@ receiver:
 
 1. منشئ المجموعة (أو أي عضو) يولّد المفتاح.
 2. يشفّره لكل عضو على حدة بمخطط ECDH نفسه مع
-   `info="najwa/v1/groupkey"` و`aad` يحتوي معرّف المستلم.
+   `info="aman/v1/groupkey"` و`aad` يحتوي معرّف المستلم.
 3. يرفع المغلفات إلى `POST /api/chats/:id/keys`.
 4. كل عضو يجلب مغلفه من `GET /api/chats/:id/keys/:epoch` ويفكّه ويخزّنه محليًا
    **مشفّرًا** بمفتاح جهاز.
 5. رسائل المجموعة تُشفّر مرة واحدة:
-   `AES-256-GCM(groupKey, aad="najwa/v1/group|chatId|epoch|senderId")`.
+   `AES-256-GCM(groupKey, aad="aman/v1/group|chatId|epoch|senderId")`.
 
 عند تغيّر الأعضاء (إضافة/إزالة/مغادرة) يزيد `epoch`، ويُعاد توزيع مفتاح جديد،
 وتُرفض الرسائل بالجيل القديم (`409 epoch_mismatch`) فيعيد العميل التشفير.

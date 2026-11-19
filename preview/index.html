@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>معاينة نجوى — واجهة التطبيق</title>
+<title>معاينة Aman — واجهة التطبيق</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
@@ -391,7 +391,7 @@
     <div class="brand">
       <div class="mark"><svg class="i"><use href="#i-forum"/></svg></div>
       <div>
-        <h1>نجوى — معاينة الواجهة</h1>
+        <h1>Aman — معاينة الواجهة</h1>
         <small>نسخة ثابتة من تصميم تطبيق Flutter (بدون مكالمات)</small>
       </div>
     </div>
@@ -431,7 +431,7 @@
                 <svg class="i"><use href="#i-forum"/></svg>
                 <span class="lockbadge"><svg class="i"><use href="#i-lock"/></svg></span>
               </div></div>
-              <h2>نجوى</h2>
+              <h2>Aman</h2>
               <p class="lead">محادثات خاصة، مشفّرة من الطرف إلى الطرف.<br>لا مكالمات، لا إعلانات، لا تتبّع.</p>
               <div class="features">
                 <div class="feature"><span class="fico"><svg class="i"><use href="#i-lock"/></svg></span><span>تشفير X25519 + AES-256-GCM لكل رسالة</span></div>
@@ -453,7 +453,7 @@
             </header>
             <div class="auth-body">
               <div class="center"><div class="logo l64" style="margin:0 auto"><svg class="i"><use href="#i-forum"/></svg><span class="lockbadge"><svg class="i"><use href="#i-lock"/></svg></span></div></div>
-              <div class="auth-title">انضم إلى نجوى</div>
+              <div class="auth-title">انضم إلى Aman</div>
               <p class="auth-sub">اسم مستخدم قصير، وكلمة مرور قوية.<br>مفتاحك الخاص يبقى على جهازك.</p>
 
               <div class="fieldbox">
@@ -486,7 +486,7 @@
               <div class="me-head" style="flex:1;padding-inline-start:10px">
                 <div class="av s38" style="--a:#0EA5A4">أ</div>
                 <div class="txt">
-                  <div class="appname">نجوى</div>
+                  <div class="appname">Aman</div>
                   <div class="secure"><svg class="i"><use href="#i-lock"/></svg><span>متصل ومشفّر</span></div>
                 </div>
               </div>
@@ -560,7 +560,7 @@
               <div class="day">اليوم</div>
 
               <div class="bubble">
-                <div class="body">مرحبًا! وصلني تحديث نجوى الجديد 🎉</div>
+                <div class="body">مرحبًا! وصلني تحديث Aman الجديد 🎉</div>
                 <div class="meta"><span class="t">09:38</span></div>
               </div>
 
@@ -717,7 +717,7 @@
 
               <button class="logout"><svg class="i"><use href="#i-logout"/></svg><span>تسجيل الخروج</span></button>
 
-              <div class="foot">نجوى 0.1.0<br><span class="dim">لا مكالمات · لا إعلانات · لا تتبّع</span></div>
+              <div class="foot">Aman 0.1.0<br><span class="dim">لا مكالمات · لا إعلانات · لا تتبّع</span></div>
             </div>
           </section>
 
@@ -776,13 +776,13 @@
   if (wanted) show(wanted);
 
   const themeParam = params.get('theme');
-  const saved = themeParam || localStorage.getItem('najwa-preview-theme');
+  const saved = themeParam || localStorage.getItem('aman-preview-theme');
   if (saved === 'dark') document.documentElement.dataset.theme = 'dark';
 
   document.getElementById('themeBtn').addEventListener('click', () => {
     const dark = document.documentElement.dataset.theme === 'dark';
     document.documentElement.dataset.theme = dark ? 'light' : 'dark';
-    localStorage.setItem('najwa-preview-theme', dark ? 'light' : 'dark');
+    localStorage.setItem('aman-preview-theme', dark ? 'light' : 'dark');
   });
 </script>
 </body>
