@@ -18,7 +18,7 @@ class AuthScreen extends StatefulWidget {
 
 class _AuthScreenState extends State<AuthScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _username = TextEditingController();
+  final _identifier = TextEditingController();
   final _displayName = TextEditingController();
   final _password = TextEditingController();
 
@@ -28,11 +28,13 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   void dispose() {
-    _username.dispose();
+    _identifier.dispose();
     _displayName.dispose();
     _password.dispose();
     super.dispose();
   }
+
+  static String _phoneDigits(String value) => value.replaceAll(RegExp(r'[^0-9]'), '');
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -42,13 +44,13 @@ class _AuthScreenState extends State<AuthScreen> {
     try {
       if (_register) {
         await session.register(
-          username: _username.text.trim().toLowerCase(),
+          phone: _phoneDigits(_identifier.text),
           password: _password.text,
           displayName: _displayName.text.trim(),
         );
       } else {
         await session.login(
-          username: _username.text.trim().toLowerCase(),
+          identifier: _identifier.text.trim(),
           password: _password.text,
         );
       }
@@ -89,8 +91,8 @@ class _AuthScreenState extends State<AuthScreen> {
                 const SizedBox(height: 6),
                 Text(
                   _register
-                      ? 'اسم مستخدم قصير، وكلمة مرور قوية. مفتاحك الخاص يبقى على جهازك.'
-                      : 'أدخل بيانات حسابك للمتابعة.',
+                      ? 'رقم هاتفك هو هويتك في Aman. مفتاحك الخاص يبقى على جهازك.'
+                      : 'أدخل رقم هاتفك وكلمة المرور للمتابعة.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: scheme.onSurfaceVariant,
@@ -116,19 +118,24 @@ class _AuthScreenState extends State<AuthScreen> {
                   const SizedBox(height: 14),
                 ],
                 TextFormField(
-                  controller: _username,
+                  controller: _identifier,
                   textInputAction: TextInputAction.next,
                   textDirection: TextDirection.ltr,
+                  keyboardType: _register ? TextInputType.phone : TextInputType.text,
                   autocorrect: false,
-                  decoration: const InputDecoration(
-                    labelText: 'اسم المستخدم',
-                    prefixText: '@ ',
-                    prefixIcon: Icon(Icons.alternate_email),
+                  decoration: InputDecoration(
+                    labelText: _register ? 'رقم الهاتف' : 'رقم الهاتف أو اسم المستخدم',
+                    hintText: _register ? '+971 50 123 4567' : null,
+                    prefixIcon: Icon(_register ? Icons.phone_iphone_rounded : Icons.person_outline),
                   ),
                   validator: (v) {
-                    final value = (v ?? '').trim().toLowerCase();
-                    if (!RegExp(r'^[a-z0-9_]{3,20}$').hasMatch(value)) {
-                      return '3-20 حرفًا: حروف لاتينية صغيرة أو أرقام أو _';
+                    final value = (v ?? '').trim();
+                    if (value.isEmpty) return 'أدخل رقم هاتفك';
+                    if (_register) {
+                      final digits = _phoneDigits(value);
+                      if (digits.length < 7 || digits.length > 15) {
+                        return 'رقم غير صحيح — أدخله مع رمز الدولة (7 إلى 15 رقمًا)';
+                      }
                     }
                     return null;
                   },
@@ -148,7 +155,9 @@ class _AuthScreenState extends State<AuthScreen> {
                     ),
                   ),
                   validator: (v) {
-                    if ((v ?? '').length < 8) return 'كلمة المرور 8 أحرف على الأقل';
+                    final value = v ?? '';
+                    if (_register && value.length < 8) return 'كلمة المرور 8 أحرف على الأقل';
+                    if (!_register && value.isEmpty) return 'أدخل كلمة المرور';
                     return null;
                   },
                 ),

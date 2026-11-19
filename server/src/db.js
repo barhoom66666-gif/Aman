@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
   id            TEXT PRIMARY KEY,
   username      TEXT NOT NULL UNIQUE COLLATE NOCASE,
   display_name  TEXT NOT NULL,
+  phone         TEXT,
   password_hash TEXT NOT NULL,
   identity_key  TEXT NOT NULL,
   avatar_color  TEXT NOT NULL,
@@ -89,5 +90,13 @@ export function openDatabase(file) {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.exec(SCHEMA);
+
+  // ترقية قواعد البيانات القديمة: عمود رقم الهاتف اختياري لمن سجّل سابقًا.
+  const columns = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+  if (!columns.includes('phone')) {
+    db.exec('ALTER TABLE users ADD COLUMN phone TEXT');
+  }
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_phone_unique ON users(phone) WHERE phone IS NOT NULL');
+
   return db;
 }

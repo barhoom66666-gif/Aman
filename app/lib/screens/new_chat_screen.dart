@@ -10,6 +10,7 @@ import '../utils.dart';
 import '../widgets/avatar.dart';
 import '../widgets/common.dart';
 import 'chat_screen.dart';
+import 'qr_screen.dart';
 
 class NewChatScreen extends StatefulWidget {
   const NewChatScreen({super.key});
@@ -92,11 +93,13 @@ class _DirectTabState extends State<_DirectTab> {
     });
   }
 
-  Future<void> _open(User user) async {
-    setState(() => _opening = user.id);
+  Future<void> _open(User user) => _openUsername(user.username);
+
+  Future<void> _openUsername(String username) async {
+    setState(() => _opening = username);
     final session = context.read<Session>();
     try {
-      final chat = await session.openDirect(user.username);
+      final chat = await session.openDirect(username);
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => ChatScreen(chatId: chat.id)),
@@ -108,34 +111,60 @@ class _DirectTabState extends State<_DirectTab> {
     }
   }
 
+  Future<void> _scan() async {
+    final raw = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const QrScanScreen()),
+    );
+    if (raw == null || !mounted) return;
+    final username = usernameFromQr(raw);
+    if (username == null) {
+      showError(context, 'باركود غير صالح — تأكد أنه باركود Aman');
+      return;
+    }
+    await _openUsername(username);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: TextField(
-            controller: _controller,
-            onChanged: _search,
-            textInputAction: TextInputAction.search,
-            decoration: InputDecoration(
-              hintText: 'ابحث باسم المستخدم…',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: _loading
-                  ? const Padding(
-                      padding: EdgeInsets.all(14),
-                      child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-                    )
-                  : null,
-            ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  onChanged: _search,
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    hintText: 'ابحث برقم الهاتف أو الاسم…',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _loading
+                        ? const Padding(
+                            padding: EdgeInsets.all(14),
+                            child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                          )
+                        : null,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton.filledTonal(
+                onPressed: _scan,
+                icon: const Icon(Icons.qr_code_scanner_rounded),
+                tooltip: 'مسح باركود',
+              ),
+            ],
           ),
         ),
         Expanded(
           child: _results.isEmpty
               ? const EmptyState(
                   icon: Icons.person_search_outlined,
-                  title: 'ابحث عن مستخدم',
-                  subtitle: 'اكتب حرفين على الأقل من اسم المستخدم للعثور على من تريد محادثته.',
+                  title: 'ابحث عن شخص',
+                  subtitle: 'اكتب رقم هاتفه مع رمز الدولة أو اسمه، أو امسح باركوده. '
+                      'لا يظهر هنا إلا من أنشأ حسابًا على نفس الخادم.',
                 )
               : ListView.builder(
                   itemCount: _results.length,
@@ -149,8 +178,11 @@ class _DirectTabState extends State<_DirectTab> {
                         online: user.online,
                       ),
                       title: Text(user.displayName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                      subtitle: Text('@${user.username}', textDirection: TextDirection.ltr),
-                      trailing: _opening == user.id
+                      subtitle: Text(
+                        userHandle(phone: user.phone, username: user.username),
+                        textDirection: TextDirection.ltr,
+                      ),
+                      trailing: _opening == user.username
                           ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                           : const Icon(Icons.arrow_forward_ios_rounded, size: 15),
                       onTap: () => _open(user),
@@ -265,7 +297,7 @@ class _GroupTabState extends State<_GroupTab> {
             controller: _search,
             onChanged: _runSearch,
             decoration: InputDecoration(
-              hintText: 'أضف أعضاء…',
+              hintText: 'أضف عضوًا برقم الهاتف أو الاسم…',
               prefixIcon: const Icon(Icons.person_add_alt_1_outlined),
               suffixIcon: _loading
                   ? const Padding(
@@ -281,7 +313,8 @@ class _GroupTabState extends State<_GroupTab> {
               ? const EmptyState(
                   icon: Icons.group_add_outlined,
                   title: 'أنشئ مجموعة',
-                  subtitle: 'اختر اسمًا للمجموعة، ثم ابحث عن الأعضاء وأضفهم.',
+                  subtitle: 'اختر اسمًا للمجموعة، ثم ابحث برقم الهاتف أو الاسم وأضف الأعضاء. '
+                      'لا تحتاج إلى إضافتهم إلى جهات الاتصال أولًا.',
                 )
               : ListView.builder(
                   itemCount: _results.length,
@@ -291,7 +324,10 @@ class _GroupTabState extends State<_GroupTab> {
                     return ListTile(
                       leading: Avatar(name: user.displayName, color: user.avatarColor, size: 44),
                       title: Text(user.displayName),
-                      subtitle: Text('@${user.username}', textDirection: TextDirection.ltr),
+                      subtitle: Text(
+                        userHandle(phone: user.phone, username: user.username),
+                        textDirection: TextDirection.ltr,
+                      ),
                       trailing: Checkbox(
                         value: selected,
                         onChanged: (value) {

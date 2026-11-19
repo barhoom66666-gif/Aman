@@ -63,3 +63,10 @@ void showError(BuildContext context, Object error) {
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(content: Text(text)));
 }
+
+/// يعرض رقم الهاتف بصيغة دولية بسيطة، أو اسم المستخدم إن لم يُضف رقم.
+String userHandle({String? phone, String? username}) {
+  final digits = (phone ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+  if (digits.isNotEmpty) return '+$digits';
+  return '@${username ?? ''}';
+}

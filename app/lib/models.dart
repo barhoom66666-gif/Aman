@@ -4,6 +4,7 @@ class User {
   final String id;
   final String username;
   final String displayName;
+  final String? phone;
   final String avatarColor;
   final String? identityKey;
   final int lastSeen;
@@ -14,6 +15,7 @@ class User {
     required this.id,
     required this.username,
     required this.displayName,
+    this.phone,
     required this.avatarColor,
     this.identityKey,
     this.lastSeen = 0,
@@ -33,6 +35,7 @@ class User {
       id: json['id'] as String,
       username: json['username'] as String? ?? '',
       displayName: json['displayName'] as String? ?? json['username'] as String? ?? '',
+      phone: json['phone'] as String?,
       avatarColor: json['avatarColor'] as String? ?? '#0EA5A4',
       identityKey: json['identityKey'] as String?,
       lastSeen: (json['lastSeen'] as num?)?.toInt() ?? 0,
@@ -45,6 +48,7 @@ class User {
         'id': id,
         'username': username,
         'displayName': displayName,
+        'phone': phone,
         'avatarColor': avatarColor,
         'identityKey': identityKey,
         'lastSeen': lastSeen,
@@ -52,10 +56,11 @@ class User {
         'online': online,
       };
 
-  User copyWith({String? displayName, bool? online, int? lastSeen, int? lastReadAt, String? identityKey}) => User(
+  User copyWith({String? displayName, String? phone, bool? online, int? lastSeen, int? lastReadAt, String? identityKey}) => User(
         id: id,
         username: username,
         displayName: displayName ?? this.displayName,
+        phone: phone ?? this.phone,
         avatarColor: avatarColor,
         identityKey: identityKey ?? this.identityKey,
         lastSeen: lastSeen ?? this.lastSeen,

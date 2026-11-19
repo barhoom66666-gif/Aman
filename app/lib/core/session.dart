@@ -90,13 +90,13 @@ class Session extends ChangeNotifier {
   String get serverUrl => AppConfig.base;
 
   Future<void> register({
-    required String username,
+    required String phone,
     required String password,
     required String displayName,
   }) async {
     final identityKey = await CryptoService.loadOrCreateIdentity();
     final data = await api.register(
-      username: username,
+      phone: phone,
       password: password,
       displayName: displayName,
       identityKey: identityKey,
@@ -104,9 +104,9 @@ class Session extends ChangeNotifier {
     await _finishAuth(data);
   }
 
-  Future<void> login({required String username, required String password}) async {
+  Future<void> login({required String identifier, required String password}) async {
     await CryptoService.loadOrCreateIdentity();
-    final data = await api.login(username: username, password: password);
+    final data = await api.login(identifier: identifier, password: password);
     await _finishAuth(data);
     // نشر مفتاح هذا الجهاز حتى يشفّر الآخرون له (جهاز واحد لكل حساب).
     try {
@@ -156,8 +156,12 @@ class Session extends ChangeNotifier {
     _notify();
   }
 
-  Future<void> updateDisplayName(String name) async {
-    final data = await api.updateProfile(name);
+  Future<void> updateDisplayName(String name) => _applyProfile(displayName: name);
+
+  Future<void> updatePhone(String phone) => _applyProfile(phone: phone);
+
+  Future<void> _applyProfile({String? displayName, String? phone}) async {
+    final data = await api.updateProfile(displayName: displayName, phone: phone);
     me = User.fromJson((data['user'] as Map).cast<String, dynamic>());
     await _storage.write(key: _kUser, value: jsonEncode(me!.toJson()));
     _notify();

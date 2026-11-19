@@ -7,7 +7,9 @@ import {
   hashPassword,
   newId,
   newToken,
+  normalizePhone,
   now,
+  phoneQueryDigits,
   publicUser,
   sha256,
   validEnvelope,
@@ -72,6 +74,22 @@ export function createRouter({ db, hub, mediaDir, maxMediaBytes }) {
 
   function userByName(username) {
     return db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+  }
+
+  function userByIdentifier(identifier) {
+    if (!identifier) return null;
+    const username = String(identifier).toLowerCase();
+    return db
+      .prepare('SELECT * FROM users WHERE username = ? OR (phone IS NOT NULL AND phone = ?)')
+      .get(username, normalizePhone(identifier));
+  }
+
+  function freshUsername() {
+    for (let i = 0; i < 12; i += 1) {
+      const candidate = `u${newId('').slice(0, 12)}`;
+      if (!userByName(candidate)) return candidate;
+    }
+    throw new HttpError(500, 'internal', 'تعذّر إنشاء اسم مستخدم');
   }
 
   function chatSummary(chatId, userId) {
@@ -139,19 +157,34 @@ export function createRouter({ db, hub, mediaDir, maxMediaBytes }) {
   // ---------- auth ----------
 
   router.post('/auth/register', (req, res) => {
-    const username = text(req.body?.username, { max: 20, field: 'اسم المستخدم' }).toLowerCase();
-    if (!USERNAME_RE.test(username)) {
-      throw new HttpError(400, 'bad_username', 'اسم المستخدم يجب أن يكون 3-20 حرفًا لاتينيًا أو أرقامًا أو _');
+    const phone = normalizePhone(req.body?.phone);
+    if (phone.length < 7 || phone.length > 15) {
+      throw new HttpError(400, 'bad_phone', 'أدخل رقم هاتف صحيحًا (7 إلى 15 رقمًا مع رمز الدولة)');
     }
     const password = text(req.body?.password, { min: 8, max: 128, field: 'كلمة المرور' });
     const displayName = text(req.body?.displayName, { max: 40, field: 'الاسم' });
     const identityKey = identityKeyOf(req.body?.identityKey);
-    if (userByName(username)) throw new HttpError(409, 'username_taken', 'اسم المستخدم محجوز');
+
+    let username = null;
+    if (req.body?.username != null && String(req.body.username).trim() !== '') {
+      username = text(req.body.username, { max: 20, field: 'اسم المستخدم' }).toLowerCase();
+      if (!USERNAME_RE.test(username)) {
+        throw new HttpError(400, 'bad_username', 'اسم المستخدم يجب أن يكون 3-20 حرفًا لاتينيًا أو أرقامًا أو _');
+      }
+      if (userByName(username)) throw new HttpError(409, 'username_taken', 'اسم المستخدم محجوز');
+    } else {
+      username = freshUsername();
+    }
+
+    if (db.prepare('SELECT 1 FROM users WHERE phone = ?').get(phone)) {
+      throw new HttpError(409, 'phone_taken', 'رقم الهاتف مسجّل بالفعل');
+    }
 
     const user = {
       id: newId('u'),
       username,
       display_name: displayName,
+      phone,
       password_hash: hashPassword(password),
       identity_key: identityKey,
       avatar_color: colorFor(username),
@@ -159,8 +192,8 @@ export function createRouter({ db, hub, mediaDir, maxMediaBytes }) {
       last_seen: now(),
     };
     db.prepare(
-      `INSERT INTO users (id, username, display_name, password_hash, identity_key, avatar_color, created_at, last_seen)
-       VALUES (@id, @username, @display_name, @password_hash, @identity_key, @avatar_color, @created_at, @last_seen)`,
+      `INSERT INTO users (id, username, display_name, phone, password_hash, identity_key, avatar_color, created_at, last_seen)
+       VALUES (@id, @username, @display_name, @phone, @password_hash, @identity_key, @avatar_color, @created_at, @last_seen)`,
     ).run(user);
 
     const token = sessionFor(user.id, req.body?.device);
@@ -168,11 +201,14 @@ export function createRouter({ db, hub, mediaDir, maxMediaBytes }) {
   });
 
   router.post('/auth/login', (req, res) => {
-    const username = text(req.body?.username, { max: 20, field: 'اسم المستخدم' }).toLowerCase();
+    const identifier = text(req.body?.identifier ?? req.body?.username, {
+      max: 40,
+      field: 'رقم الهاتف أو اسم المستخدم',
+    }).toLowerCase();
     const password = text(req.body?.password, { min: 1, max: 128, field: 'كلمة المرور' });
-    const user = userByName(username);
+    const user = userByIdentifier(identifier);
     if (!user || !verifyPassword(password, user.password_hash)) {
-      throw new HttpError(401, 'bad_credentials', 'اسم المستخدم أو كلمة المرور غير صحيحة');
+      throw new HttpError(401, 'bad_credentials', 'رقم الهاتف أو كلمة المرور غير صحيحة');
     }
     db.prepare('UPDATE users SET last_seen = ? WHERE id = ?').run(now(), user.id);
     const token = sessionFor(user.id, req.body?.device);
@@ -193,9 +229,26 @@ export function createRouter({ db, hub, mediaDir, maxMediaBytes }) {
   });
 
   router.patch('/me', auth, (req, res) => {
-    const displayName = text(req.body?.displayName, { max: 40, field: 'الاسم' });
-    db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(displayName, req.user.id);
-    res.json({ user: publicUser({ ...req.user, display_name: displayName }) });
+    const body = req.body ?? {};
+    let displayName = req.user.display_name;
+    if (body.displayName !== undefined) {
+      displayName = text(body.displayName, { max: 40, field: 'الاسم' });
+    }
+    let phone = req.user.phone ?? null;
+    if (body.phone !== undefined) {
+      const next = normalizePhone(body.phone);
+      if (next === '') {
+        phone = null;
+      } else if (next.length < 7 || next.length > 15) {
+        throw new HttpError(400, 'bad_phone', 'أدخل رقم هاتف صحيحًا (7 إلى 15 رقمًا مع رمز الدولة)');
+      } else {
+        const taken = db.prepare('SELECT 1 FROM users WHERE phone = ? AND id <> ?').get(next, req.user.id);
+        if (taken) throw new HttpError(409, 'phone_taken', 'رقم الهاتف مسجّل لحساب آخر');
+        phone = next;
+      }
+    }
+    db.prepare('UPDATE users SET display_name = ?, phone = ? WHERE id = ?').run(displayName, phone, req.user.id);
+    res.json({ user: publicUser({ ...req.user, display_name: displayName, phone }) });
   });
 
   // مفتاح الهوية لكل جهاز؛ عند الدخول من جهاز جديد يُحدَّث المفتاح العام
@@ -209,14 +262,27 @@ export function createRouter({ db, hub, mediaDir, maxMediaBytes }) {
   router.get('/users', auth, (req, res) => {
     const q = text(req.query.q ?? '', { min: 0, max: 40, field: 'البحث' });
     if (!q) return res.json({ users: [] });
-    const like = `%${q.replace(/[%_]/g, '')}%`;
-    const rows = db
-      .prepare(
-        `SELECT * FROM users
-          WHERE id <> ? AND (username LIKE ? OR display_name LIKE ?)
-          ORDER BY username ASC LIMIT 20`,
-      )
-      .all(req.user.id, like, like);
+    const safe = q.replace(/[%_]/g, '');
+    const like = `%${safe}%`;
+    const digits = phoneQueryDigits(q);
+    const rows =
+      digits.length >= 3
+        ? db
+            .prepare(
+              `SELECT * FROM users
+                WHERE id <> ?
+                  AND (username LIKE ? OR display_name LIKE ? OR (phone IS NOT NULL AND phone LIKE ?))
+                ORDER BY CASE WHEN phone = ? THEN 0 ELSE 1 END, username ASC
+                LIMIT 20`,
+            )
+            .all(req.user.id, like, like, `%${digits}%`, digits)
+        : db
+            .prepare(
+              `SELECT * FROM users
+                WHERE id <> ? AND (username LIKE ? OR display_name LIKE ?)
+                ORDER BY username ASC LIMIT 20`,
+            )
+            .all(req.user.id, like, like);
     res.json({ users: rows.map((u) => ({ ...publicUser(u), online: hub.isOnline(u.id) })) });
   });
 

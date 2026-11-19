@@ -70,6 +70,31 @@ class ChatsScreen extends StatelessWidget {
       ),
       body: Column(
         children: [
+          if ((me?.phone ?? '').isEmpty)
+            Material(
+              color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.45),
+              child: InkWell(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
+                  child: Row(
+                    children: [
+                      Icon(Icons.phone_iphone_rounded, size: 18, color: Theme.of(context).colorScheme.primary),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'أضف رقم هاتفك ليتمكن الآخرون من إيجادك والبحث عنك',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                      Icon(Icons.chevron_left_rounded, size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           if (session.connectionError != null)
             Container(
               width: double.infinity,
@@ -88,7 +113,7 @@ class ChatsScreen extends StatelessWidget {
                 ? EmptyState(
                     icon: Icons.forum_outlined,
                     title: 'لا محادثات بعد',
-                    subtitle: 'ابحث عن صديق باسم المستخدم وابدأ محادثة مشفّرة، أو أنشئ مجموعة.',
+                    subtitle: 'ابحث برقم الهاتف أو الاسم وابدأ محادثة مشفّرة، أو أنشئ مجموعة — حتى بدون إضافة جهات اتصال.',
                     action: FilledButton.icon(
                       onPressed: () => Navigator.of(context).push(
                         MaterialPageRoute(builder: (_) => const NewChatScreen()),

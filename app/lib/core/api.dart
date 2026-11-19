@@ -76,14 +76,14 @@ class ApiClient {
   // ---------- الحساب ----------
 
   Future<Map<String, dynamic>> register({
-    required String username,
+    required String phone,
     required String password,
     required String displayName,
     required String identityKey,
     String device = 'android',
   }) =>
       _send('POST', '/api/auth/register', body: {
-        'username': username,
+        'phone': phone,
         'password': password,
         'displayName': displayName,
         'identityKey': identityKey,
@@ -91,11 +91,11 @@ class ApiClient {
       });
 
   Future<Map<String, dynamic>> login({
-    required String username,
+    required String identifier,
     required String password,
   }) =>
       _send('POST', '/api/auth/login', body: {
-        'username': username,
+        'identifier': identifier,
         'password': password,
         'device': 'android',
       });
@@ -104,8 +104,11 @@ class ApiClient {
 
   Future<Map<String, dynamic>> me() => _send('GET', '/api/me');
 
-  Future<Map<String, dynamic>> updateProfile(String displayName) =>
-      _send('PATCH', '/api/me', body: {'displayName': displayName});
+  Future<Map<String, dynamic>> updateProfile({String? displayName, String? phone}) =>
+      _send('PATCH', '/api/me', body: {
+        if (displayName != null) 'displayName': displayName,
+        if (phone != null) 'phone': phone,
+      });
 
   Future<void> updateIdentityKey(String identityKey) =>
       _send('POST', '/api/me/identity', body: {'identityKey': identityKey});

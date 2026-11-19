@@ -7,6 +7,7 @@ import '../core/session.dart';
 import '../utils.dart';
 import '../widgets/avatar.dart';
 import '../widgets/server_dialog.dart';
+import 'qr_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -54,6 +55,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
       } catch (e) {
         if (mounted) showError(context, e);
       }
+    }
+  }
+
+  Future<void> _editPhone(Session session) async {
+    final controller = TextEditingController(
+      text: session.me?.phone == null ? '' : '+${session.me!.phone}',
+    );
+    final phone = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('رقم الهاتف'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: controller,
+              autofocus: true,
+              keyboardType: TextInputType.phone,
+              textDirection: TextDirection.ltr,
+              decoration: const InputDecoration(
+                labelText: 'الرقم مع رمز الدولة',
+                hintText: '+971 50 123 4567',
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'يستخدمه الآخرون للعثور عليك. لا يظهر إلا لمن يبحث عنك بالرقم.',
+              style: TextStyle(fontSize: 11.5),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
+    if (phone == null) return;
+    final digits = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.length < 7 || digits.length > 15) {
+      if (mounted) showError(context, 'أدخل رقمًا صحيحًا مع رمز الدولة (7 إلى 15 رقمًا)');
+      return;
+    }
+    try {
+      await session.updatePhone(digits);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حفظ رقم الهاتف')));
+      }
+    } catch (e) {
+      if (mounted) showError(context, e);
     }
   }
 
@@ -129,7 +184,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                         ),
                         const SizedBox(height: 2),
-                        Text('@${me?.username ?? ''}', textDirection: TextDirection.ltr),
+                        Text(
+                          userHandle(phone: me?.phone, username: me?.username),
+                          textDirection: TextDirection.ltr,
+                        ),
                         const SizedBox(height: 6),
                         Row(
                           children: [
@@ -145,12 +203,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   IconButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const MyQrScreen()),
+                    ),
+                    icon: const Icon(Icons.qr_code_2_rounded),
+                    tooltip: 'باركودي',
+                  ),
+                  IconButton(
                     onPressed: () => _editName(session),
                     icon: const Icon(Icons.edit_outlined),
                     tooltip: 'تعديل الاسم',
                   ),
                 ],
               ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          _SectionTitle(title: 'حسابي'),
+          _SettingTile(
+            icon: Icons.phone_iphone_rounded,
+            title: 'رقم الهاتف',
+            subtitle: (me?.phone ?? '').isEmpty
+                ? 'أضف رقمك ليتمكن الآخرون من إيجادك والبحث عنك'
+                : '+${me!.phone}',
+            onTap: () => _editPhone(session),
+          ),
+          _SettingTile(
+            icon: Icons.qr_code_2_rounded,
+            title: 'باركودي',
+            subtitle: 'اعرض باركودك ليضيفك الآخرون بمسح واحد',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const MyQrScreen()),
+            ),
+          ),
+          _SettingTile(
+            icon: Icons.alternate_email_rounded,
+            title: 'اسم المستخدم',
+            subtitle: '@${me?.username ?? ''}',
+            trailing: IconButton(
+              icon: const Icon(Icons.copy_rounded, size: 18),
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: '@${me?.username ?? ''}'));
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('تم نسخ اسم المستخدم')),
+                  );
+                }
+              },
             ),
           ),
           const SizedBox(height: 20),
@@ -220,7 +319,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Center(
             child: Column(
               children: [
-                Text('Aman 0.1.0', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                Text('Aman 0.2.0', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
                 const SizedBox(height: 4),
                 Text(
                   'لا مكالمات · لا إعلانات · لا تتبّع',

@@ -124,12 +124,18 @@ async function api(pathname, { method = 'GET', token, body, raw, contentType } =
   return data;
 }
 
-async function register(username, displayName) {
+function phoneFor(username) {
+  const hex = crypto.createHash('sha256').update(username).digest('hex').slice(0, 12);
+  return '9' + BigInt(`0x${hex}`).toString().padStart(12, '0').slice(-12);
+}
+
+async function register(username, displayName, phone = phoneFor(username)) {
   const keys = newKeyPair();
   const data = await api('/api/auth/register', {
     method: 'POST',
     body: {
       username,
+      phone,
       password: 'secret-pass-123',
       displayName,
       identityKey: keys.pubRaw.toString('base64'),
@@ -190,13 +196,22 @@ test('تسجيل، محادثة فردية مشفرة، إشعار فوري', as
 
   const login = await api('/api/auth/login', {
     method: 'POST',
-    body: { username: 'ali_test', password: 'secret-pass-123' },
+    body: { identifier: ali.user.phone, password: 'secret-pass-123' },
   });
   assert.ok(login.token);
+
+  const loginByName = await api('/api/auth/login', {
+    method: 'POST',
+    body: { username: 'ali_test', password: 'secret-pass-123' },
+  });
+  assert.ok(loginByName.token);
 
   const found = await api('/api/users?q=sara', { token: ali.token });
   assert.equal(found.users.length, 1);
   assert.equal(found.users[0].username, 'sara_test');
+
+  const foundByPhone = await api(`/api/users?q=${sara.user.phone}`, { token: ali.token });
+  assert.equal(foundByPhone.users[0].username, 'sara_test');
 
   const { chat } = await api('/api/chats/direct', {
     method: 'POST',

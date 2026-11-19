@@ -1,7 +1,7 @@
 name: aman
 description: "Aman — مراسلة خاصة ومشفّرة من الطرف إلى الطرف"
 publish_to: "none"
-version: 0.1.0+1
+version: 0.2.0+2
 
 environment:
   sdk: ">=3.9.0 <4.0.0"
@@ -22,6 +22,8 @@ dependencies:
   image_picker: ^1.1.2
   # 10.x يستخدم compileSdk الخاص بـ Flutter (36) بدل 34 — مطلوب لتوافق الإضافات.
   file_picker: ^10.3.10
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^7.5.0
   uuid: ^4.5.0
   intl: ^0.20.3
 

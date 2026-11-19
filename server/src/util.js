@@ -24,6 +24,16 @@ export function colorFor(seed) {
   return COLORS[h % COLORS.length];
 }
 
+/** يحوّل رقم الهاتف إلى أرقام فقط (بدون + أو مسافات) لتخزينه ومطابقته. */
+export function normalizePhone(value) {
+  return String(value ?? '').replace(/\D/g, '');
+}
+
+/** أرقام البحث: تسمح للمستخدم بكتابة المسافات أو + أو 00. */
+export function phoneQueryDigits(value) {
+  return normalizePhone(String(value ?? '').replace(/^00/, ''));
+}
+
 /** scrypt password hashing: "<saltHex>:<hashHex>" */
 export function hashPassword(password) {
   const salt = crypto.randomBytes(16);
@@ -58,6 +68,7 @@ export function publicUser(row) {
     id: row.id,
     username: row.username,
     displayName: row.display_name,
+    phone: row.phone ?? null,
     avatarColor: row.avatar_color,
     identityKey: row.identity_key ?? undefined,
     lastSeen: row.last_seen ?? 0,
