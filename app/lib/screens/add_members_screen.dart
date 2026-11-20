@@ -105,9 +105,10 @@ class _AddMembersSheetState extends State<AddMembersSheet> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final height = MediaQuery.sizeOf(context).height * 0.82;
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    final height = (MediaQuery.sizeOf(context).height - keyboard) * 0.82;
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(bottom: keyboard),
       child: SafeArea(
         top: false,
         child: SizedBox(
