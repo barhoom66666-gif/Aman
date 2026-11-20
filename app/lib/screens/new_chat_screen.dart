@@ -13,14 +13,20 @@ import 'chat_screen.dart';
 import 'qr_screen.dart';
 
 class NewChatScreen extends StatefulWidget {
-  const NewChatScreen({super.key});
+  const NewChatScreen({super.key, this.initialTab = 0});
+
+  final int initialTab;
 
   @override
   State<NewChatScreen> createState() => _NewChatScreenState();
 }
 
 class _NewChatScreenState extends State<NewChatScreen> with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 2, vsync: this);
+  late final TabController _tabs = TabController(
+    length: 2,
+    vsync: this,
+    initialIndex: widget.initialTab.clamp(0, 1),
+  );
 
   @override
   void dispose() {

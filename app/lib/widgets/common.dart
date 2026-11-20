@@ -43,7 +43,7 @@ class AmanLogo extends StatelessWidget {
                 color: Colors.white,
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.lock_rounded, color: colorFromHex('#0E9F9A'), size: size * 0.16),
+              child: Icon(Icons.lock_rounded, color: colorFromHex('#6B7BFF'), size: size * 0.16),
             ),
           ),
         ],

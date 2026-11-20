@@ -112,7 +112,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('جهات الاتصال'),
+        centerTitle: false,
+        title: const Text('جهات الاتصال', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
         actions: [
           IconButton(
             tooltip: 'مسح باركود',

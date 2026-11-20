@@ -15,6 +15,9 @@ import '../widgets/avatar.dart';
 import '../widgets/chat_wallpaper.dart';
 import '../widgets/common.dart';
 import 'add_members_screen.dart';
+import 'me_screen.dart';
+import 'qr_screen.dart';
+import 'tools_screens.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key, required this.chatId});
@@ -31,6 +34,8 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scroll = ScrollController();
   int _lastTypingSent = 0;
   bool _loading = true;
+  String _searchQuery = '';
+  bool _searching = false;
 
   @override
   void didChangeDependencies() {
@@ -150,20 +155,47 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  void _copy(Message message) {
-    final text = message.text;
-    if (text == null || text.isEmpty) return;
-    Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم النسخ')));
-  }
-
-  Future<void> _showChatInfo(Chat chat) async {
-    await showModalBottomSheet<void>(
+  void _onMessageAction(Message message) {
+    final starred = _session.isStarred(message.id);
+    showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      isScrollControlled: true,
-      builder: (context) => _ChatInfoSheet(chatId: chat.id),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if ((message.text ?? '').isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.copy_rounded),
+                title: const Text('نسخ النص'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Clipboard.setData(ClipboardData(text: message.text!));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم النسخ')));
+                },
+              ),
+            ListTile(
+              leading: Icon(starred ? Icons.star_rounded : Icons.star_border_rounded),
+              title: Text(starred ? 'إزالة النجمة' : 'تمييز بنجمة'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _session.toggleStarred(message.id);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
     );
+  }
+
+  Future<void> _openChatInfo(Chat chat) async {
+    final result = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => ChatInfoScreen(chatId: chat.id)),
+    );
+    if (result == 'search' && mounted) {
+      setState(() => _searching = true);
+    }
   }
 
   Future<void> _addMembers(String chatId) async {
@@ -188,7 +220,12 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
 
-    final messages = session.messagesOf(chat.id);
+    final allMessages = session.messagesOf(chat.id);
+    final messages = _searchQuery.trim().isEmpty
+        ? allMessages
+        : allMessages
+            .where((m) => (m.text ?? '').toLowerCase().contains(_searchQuery.trim().toLowerCase()))
+            .toList();
     final typists = session.typistsIn(chat.id);
     final peer = chat.isGroup ? null : chat.peerFor(session.me?.id ?? '');
 
@@ -196,7 +233,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (typists.isNotEmpty) {
       subtitle = chat.isGroup ? 'يكتب أحد الأعضاء…' : 'يكتب…';
     } else if (chat.isGroup) {
-      subtitle = chat.members.length == 1 ? 'عضو واحد' : '${chat.members.length} أعضاء';
+      subtitle = chat.members.length == 1 ? 'عضو واحد' : '${chat.members.length} عضو';
     } else if (peer?.online == true) {
       subtitle = 'متصل الآن';
     } else {
@@ -205,51 +242,75 @@ class _ChatScreenState extends State<ChatScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        centerTitle: false,
         titleSpacing: 0,
-        title: InkWell(
-          onTap: () => _showChatInfo(chat),
-          borderRadius: BorderRadius.circular(10),
-          child: Row(
-            children: [
-              Avatar(
-                name: chat.title,
-                color: chat.avatarColor,
-                imageUrl: peer?.avatarUrl,
-                size: 40,
-                online: peer?.online ?? false,
-                icon: chat.isGroup ? Icons.groups_rounded : null,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
+        title: _searching
+            ? TextField(
+                autofocus: true,
+                onChanged: (v) => setState(() => _searchQuery = v),
+                decoration: InputDecoration(
+                  hintText: 'بحث في المحادثة…',
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                    onPressed: () => setState(() {
+                      _searching = false;
+                      _searchQuery = '';
+                    }),
+                  ),
+                ),
+              )
+            : InkWell(
+                onTap: () => _openChatInfo(chat),
+                borderRadius: BorderRadius.circular(10),
+                child: Row(
                   children: [
-                    Text(
-                      chat.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    Avatar(
+                      name: chat.title,
+                      color: chat.avatarColor,
+                      imageUrl: peer?.avatarUrl,
+                      size: 40,
+                      online: peer?.online ?? false,
+                      icon: chat.isGroup ? Icons.groups_rounded : null,
                     ),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: typists.isNotEmpty ? scheme.primary : scheme.onSurfaceVariant,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.lock_outline_rounded, size: 14, color: scheme.onSurfaceVariant),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  chat.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Text(
+                            subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: typists.isNotEmpty ? scheme.primary : scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-        ),
         actions: [
           IconButton(
-            onPressed: () => _showChatInfo(chat),
-            icon: const Icon(Icons.info_outline_rounded),
+            onPressed: () => _openChatInfo(chat),
+            icon: const Icon(Icons.more_horiz_rounded),
           ),
         ],
       ),
@@ -305,7 +366,8 @@ class _ChatScreenState extends State<ChatScreen> {
                           itemCount: messages.length,
                           itemBuilder: (context, index) {
                             final message = messages[messages.length - 1 - index];
-                            final older = index + 1 < messages.length ? messages[messages.length - 2 - index] : null;
+                            final older =
+                                index + 1 < messages.length ? messages[messages.length - 2 - index] : null;
                             final mine = message.senderId == session.me?.id;
                             final showDay = older == null || !isSameDay(older.createdAt, message.createdAt);
                             final sender = chat.memberById(message.senderId);
@@ -321,10 +383,11 @@ class _ChatScreenState extends State<ChatScreen> {
                                   mine: mine,
                                   showSender: chat.isGroup && !mine,
                                   senderName: sender?.displayName ?? '',
-                                  senderColor: sender?.avatarColor ?? '#0E9F9A',
+                                  senderColor: sender?.avatarColor ?? '#6B7BFF',
                                   readByPeer: readByPeer,
+                                  starred: session.isStarred(message.id),
                                   onRetry: () => session.retry(message),
-                                  onCopy: () => _copy(message),
+                                  onLongPress: () => _onMessageAction(message),
                                   session: session,
                                 ),
                               ],
@@ -384,8 +447,9 @@ class _MessageBubble extends StatelessWidget {
     required this.senderName,
     required this.senderColor,
     required this.readByPeer,
+    required this.starred,
     required this.onRetry,
-    required this.onCopy,
+    required this.onLongPress,
     required this.session,
   });
 
@@ -395,8 +459,9 @@ class _MessageBubble extends StatelessWidget {
   final String senderName;
   final String senderColor;
   final bool readByPeer;
+  final bool starred;
   final VoidCallback onRetry;
-  final VoidCallback onCopy;
+  final VoidCallback onLongPress;
   final Session session;
 
   @override
@@ -433,6 +498,10 @@ class _MessageBubble extends StatelessWidget {
     final meta = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (starred) ...[
+          Icon(Icons.star_rounded, size: 12, color: textColor.withValues(alpha: 0.75)),
+          const SizedBox(width: 3),
+        ],
         Text(
           formatTime(message.createdAt),
           style: TextStyle(fontSize: 10, color: textColor.withValues(alpha: 0.65)),
@@ -463,7 +532,7 @@ class _MessageBubble extends StatelessWidget {
     return Align(
       alignment: mine ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
       child: GestureDetector(
-        onLongPress: onCopy,
+        onLongPress: onLongPress,
         onTap: message.failed ? onRetry : null,
         child: Container(
           margin: const EdgeInsets.symmetric(vertical: 3),
@@ -701,16 +770,17 @@ class _Composer extends StatelessWidget {
   }
 }
 
-class _ChatInfoSheet extends StatefulWidget {
-  const _ChatInfoSheet({required this.chatId});
+/// شاشة معلومات المحادثة / المجموعة الكاملة المطابقة لصور JERNAS تماماً.
+class ChatInfoScreen extends StatefulWidget {
+  const ChatInfoScreen({super.key, required this.chatId});
 
   final String chatId;
 
   @override
-  State<_ChatInfoSheet> createState() => _ChatInfoSheetState();
+  State<ChatInfoScreen> createState() => _ChatInfoScreenState();
 }
 
-class _ChatInfoSheetState extends State<_ChatInfoSheet> {
+class _ChatInfoScreenState extends State<ChatInfoScreen> {
   bool _busy = false;
 
   Future<void> _addMembers(BuildContext context) async {
@@ -722,93 +792,66 @@ class _ChatInfoSheetState extends State<_ChatInfoSheet> {
     }
   }
 
-  Future<void> _pickWallpaper(BuildContext context, Chat chat) async {
-    final session = context.read<Session>();
-    final current = session.wallpaperFor(chat.id);
-    final choice = await showModalBottomSheet<String>(
+  Future<void> _editAdminText(
+    BuildContext context, {
+    required String title,
+    required String initial,
+    required ValueChanged<String> onSaved,
+  }) async {
+    final controller = TextEditingController(text: initial);
+    final res = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 3,
+          decoration: InputDecoration(hintText: title),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
+    if (res != null) onSaved(res);
+  }
+
+  Future<void> _pickSelfDestruct(BuildContext context, Session session, String chatId) async {
+    const options = ['إيقاف', 'ساعة واحدة', '24 ساعة', 'أسبوع واحد', 'شهر واحد'];
+    final current = session.selfDestructFor(chatId);
+    final chosen = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
-      builder: (sheetContext) {
-        final scheme = Theme.of(sheetContext).colorScheme;
-        final dark = Theme.of(sheetContext).brightness == Brightness.dark;
-        Widget swatch(String id, String label) {
-          final wallpaper = wallpaperById(id);
-          final selected = (current ?? 'default') == id;
-          final base = wallpaper == null
-              ? scheme.surfaceContainerHighest
-              : (dark ? wallpaper.dark : wallpaper.light);
-          return InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: () => Navigator.of(sheetContext).pop(id),
-            child: Column(
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: wallpaper == null ? base : null,
-                      gradient: wallpaper == null
-                          ? null
-                          : wallpaperDecoration(sheetContext, wallpaper.id).gradient,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: selected ? scheme.primary : scheme.outlineVariant,
-                        width: selected ? 2.5 : 1,
-                      ),
-                    ),
-                    child: selected
-                        ? Icon(Icons.check_circle_rounded, color: scheme.primary)
-                        : null,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
-                  ),
-                ),
-              ],
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Text('رسائل التدمير الذاتي', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
             ),
-          );
-        }
-
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('خلفية المحادثة', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 3),
-                Text(
-                  'تظهر خلف الرسائل على هذا الجهاز فقط.',
-                  style: TextStyle(fontSize: 11.5, color: scheme.onSurfaceVariant),
-                ),
-                const SizedBox(height: 16),
-                GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: 3,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 0.92,
-                  children: [
-                    swatch('default', 'افتراضي'),
-                    ...chatWallpapers.map((wallpaper) => swatch(wallpaper.id, wallpaper.name)),
-                  ],
-                ),
-              ],
+            ...options.map(
+              (opt) => ListTile(
+                title: Text(opt),
+                trailing: opt == current
+                    ? Icon(Icons.check_rounded, color: Theme.of(ctx).colorScheme.primary)
+                    : null,
+                onTap: () => Navigator.pop(ctx, opt),
+              ),
             ),
-          ),
-        );
-      },
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
     );
-    if (choice == null) return;
-    await session.setWallpaper(chat.id, choice == 'default' ? null : choice);
+    if (chosen != null) {
+      await session.setSelfDestructFor(chatId, chosen);
+    }
   }
 
   Future<void> _leave(BuildContext context) async {
@@ -839,229 +882,412 @@ class _ChatInfoSheetState extends State<_ChatInfoSheet> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final session = context.watch<Session>();
-    final chat = session.chats[widget.chatId];
-    final scheme = Theme.of(context).colorScheme;
-    if (chat == null) return const SizedBox.shrink();
-    final peer = chat.isGroup ? null : chat.peerFor(session.me?.id ?? '');
-    final pinned = session.isPinned(chat.id);
-    final wallpaper = wallpaperById(session.wallpaperFor(chat.id));
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: SingleChildScrollView(
+  void _showMediaSheet(BuildContext context, Session session, Chat chat) {
+    final mediaMessages = session.messagesOf(chat.id).where((m) => m.isMedia).toList();
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Avatar(
-                  name: chat.title,
-                  color: chat.avatarColor,
-                  imageUrl: peer?.avatarUrl,
-                  size: 76,
-                  icon: chat.isGroup ? Icons.groups_rounded : null,
-                ),
-              ),
+              const Text('الوسائط والروابط والملفات', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
               const SizedBox(height: 12),
-              Text(
-                chat.title,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                chat.isGroup
-                    ? (chat.members.length == 1
-                        ? 'عضو واحد · جيل التشفير ${chat.epoch}'
-                        : '${chat.members.length} أعضاء · جيل التشفير ${chat.epoch}')
-                    : userHandle(phone: peer?.phone, username: peer?.username ?? ''),
-                textAlign: TextAlign.center,
-                textDirection: chat.isGroup ? null : TextDirection.ltr,
-                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-              ),
-              const SizedBox(height: 18),
-              Card(
-                elevation: 0,
-                color: scheme.surfaceContainerHighest.withValues(alpha: 0.35),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                child: Column(
-                  children: [
-                    ListTile(
-                      leading: Icon(pinned ? Icons.push_pin_rounded : Icons.push_pin_outlined),
-                      title: const Text('تثبيت المحادثة'),
-                      subtitle: Text(pinned ? 'مثبتة في أعلى القائمة' : 'غير مثبتة'),
-                      trailing: Switch(
-                        value: pinned,
-                        onChanged: (_) => session.togglePin(chat.id),
-                      ),
-                    ),
-                    Divider(height: 1, indent: 56, color: scheme.outlineVariant.withValues(alpha: 0.5)),
-                    ListTile(
-                      leading: const Icon(Icons.wallpaper_rounded),
-                      title: const Text('خلفية المحادثة'),
-                      subtitle: Text(wallpaper?.name ?? 'افتراضي'),
-                      trailing: const Icon(Icons.chevron_left_rounded, size: 18),
-                      onTap: () => _pickWallpaper(context, chat),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-              if (chat.isGroup) ...[
-                Row(
-                  children: [
-                    Text(
-                      'الأعضاء',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    const Spacer(),
-                    Text(
-                      '${chat.members.length}',
-                      style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 14,
-                  runSpacing: 14,
-                  children: [
-                    for (final member in chat.members)
-                      _MemberBubble(
-                        member: member,
-                        isCreator: member.id == chat.createdBy,
-                      ),
-                    _AddMemberBubble(
-                      onTap: _busy ? null : () => _addMembers(context),
-                    ),
-                  ],
-                ),
-                if (chat.members.length <= 1)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: Text(
-                      'لا يوجد أعضاء غيرك بعد. أضف أعضاء ليبدأ التواصل.',
-                      style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-                    ),
-                  ),
-                const SizedBox(height: 18),
-                OutlinedButton.icon(
-                  onPressed: _busy ? null : () => _addMembers(context),
-                  icon: const Icon(Icons.person_add_alt_1_outlined),
-                  label: const Text('إضافة أعضاء'),
-                ),
-                const SizedBox(height: 10),
-                TextButton.icon(
-                  onPressed: _busy ? null : () => _leave(context),
-                  icon: Icon(Icons.logout_rounded, color: scheme.error),
-                  label: Text('مغادرة المجموعة', style: TextStyle(color: scheme.error)),
-                ),
-              ] else ...[
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: scheme.primaryContainer.withValues(alpha: 0.35),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.lock_rounded, size: 16, color: scheme.primary),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'التشفير من الطرف إلى الطرف مُفعّل. الرسائل والصور والملفات لا يراها الخادم.',
-                          style: TextStyle(fontSize: 11.5, height: 1.6, color: scheme.onSurfaceVariant),
-                        ),
-                      ),
-                    ],
+              if (mediaMessages.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: Text('لا توجد وسائط أو ملفات مشتركة في هذه المحادثة بعد.')),
+                )
+              else
+                ...mediaMessages.take(8).map(
+                  (m) => ListTile(
+                    leading: Icon(m.media?.isImage == true ? Icons.image_outlined : Icons.insert_drive_file_outlined),
+                    title: Text(m.media?.name ?? 'ملف'),
+                    subtitle: Text(humanSize(m.media?.size ?? 0)),
                   ),
                 ),
-              ],
             ],
           ),
         ),
       ),
     );
   }
-}
-
-class _MemberBubble extends StatelessWidget {
-  const _MemberBubble({required this.member, required this.isCreator});
-
-  final User member;
-  final bool isCreator;
 
   @override
   Widget build(BuildContext context) {
+    final session = context.watch<Session>();
+    final chat = session.chats[widget.chatId];
     final scheme = Theme.of(context).colorScheme;
-    return SizedBox(
-      width: 68,
-      child: Column(
-        children: [
-          Avatar(
-            name: member.displayName,
-            color: member.avatarColor,
-            imageUrl: member.avatarUrl,
-            size: 54,
-            online: member.online,
-          ),
-          const SizedBox(height: 5),
-          Text(
-            member.displayName,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-          ),
-          if (isCreator)
-            Text(
-              'منشئ',
-              style: TextStyle(fontSize: 9.5, color: scheme.primary),
+    if (chat == null) return const Scaffold();
+    final peer = chat.isGroup ? null : chat.peerFor(session.me?.id ?? '');
+    final pinned = session.isPinned(chat.id);
+    final mutedMsg = session.isChatMuted(chat.id);
+    final mutedCalls = session.isCallMuted(chat.id);
+    final selfDestruct = session.selfDestructFor(chat.id);
+    final adminMsg = session.adminMessageFor(chat.id);
+    final taskMsg = session.taskFor(chat.id);
+    final starredCount = session.starredMessagesIn(chat.id).length;
+
+    // ترتيب الأعضاء بحيث يظهر "أنت" أولاً كما في JERNAS
+    final orderedMembers = [...chat.members];
+    orderedMembers.sort((a, b) {
+      if (a.id == session.me?.id) return -1;
+      if (b.id == session.me?.id) return 1;
+      return 0;
+    });
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(''),
+        actions: [
+          IconButton(
+            tooltip: 'باركود',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const MyQrScreen()),
             ),
+            icon: const Icon(Icons.qr_code_rounded),
+          ),
+          const SizedBox(width: 4),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.only(bottom: 36),
+        children: [
+          // الصورة الدائرية الكبيرة في المنتصف
+          Center(
+            child: Avatar(
+              name: chat.title,
+              color: chat.avatarColor,
+              imageUrl: peer?.avatarUrl,
+              size: 98,
+              icon: chat.isGroup ? Icons.groups_rounded : null,
+            ),
+          ),
+          const SizedBox(height: 14),
+          // الاسم وبجانبه قفل التشفير
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.lock_outline_rounded, size: 20, color: scheme.onSurfaceVariant),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  chat.title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // الأزرار الدائرية الثلاثة بأسلوب JERNAS: مكالمة، فيديو، دردشة
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _ActionCircleButton(
+                icon: Icons.call_outlined,
+                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('مكالمة صوتية مشفّرة')),
+                ),
+              ),
+              const SizedBox(width: 28),
+              _ActionCircleButton(
+                icon: Icons.videocam_outlined,
+                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('مكالمة فيديو مشفّرة')),
+                ),
+              ),
+              const SizedBox(width: 28),
+              _ActionCircleButton(
+                icon: Icons.sms_outlined,
+                onTap: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 22),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Divider(),
+          ),
+
+          if (chat.isGroup) ...[
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+              title: const Text('إدارة المجموعة', style: TextStyle(fontSize: 16.5)),
+              trailing: Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+              onTap: () => _addMembers(context),
+            ),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+              title: const Text('رسالة المشرف', style: TextStyle(fontSize: 16.5)),
+              subtitle: adminMsg.isEmpty
+                  ? null
+                  : Text(adminMsg, style: TextStyle(fontSize: 13.5, color: scheme.onSurfaceVariant)),
+              trailing: Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+              onTap: () => _editAdminText(
+                context,
+                title: 'رسالة المشرف',
+                initial: adminMsg,
+                onSaved: (v) => session.setAdminMessageFor(chat.id, v),
+              ),
+            ),
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+              title: const Text('مهمة', style: TextStyle(fontSize: 16.5)),
+              subtitle: taskMsg.isEmpty
+                  ? null
+                  : Text(taskMsg, style: TextStyle(fontSize: 13.5, color: scheme.onSurfaceVariant)),
+              trailing: Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+              onTap: () => _editAdminText(
+                context,
+                title: 'مهمة المجموعة',
+                initial: taskMsg,
+                onSaved: (v) => session.setTaskFor(chat.id, v),
+              ),
+            ),
+          ],
+
+          SwitchListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+            title: const Text('كتم إشعارات الرسائل', style: TextStyle(fontSize: 16.5)),
+            value: mutedMsg,
+            onChanged: (_) => session.toggleChatMuted(chat.id),
+          ),
+          SwitchListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+            title: const Text('كتم صوت المكالمات الواردة', style: TextStyle(fontSize: 16.5)),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'يؤدي تمكين الحساب إلى إخفاء إشعارات المكالمات الواردة، وإظهار سجلات المكالمات الفائتة فقط في التطبيق',
+                style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant, height: 1.4),
+              ),
+            ),
+            value: mutedCalls,
+            onChanged: (_) => session.toggleCallMuted(chat.id),
+          ),
+          SwitchListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+            title: const Text('تثبيت المحادثة', style: TextStyle(fontSize: 16.5)),
+            value: pinned,
+            onChanged: (_) => session.togglePin(chat.id),
+          ),
+
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+            title: const Text('رسائل التدمير الذاتي', style: TextStyle(fontSize: 16.5)),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(selfDestruct, style: TextStyle(fontSize: 15, color: scheme.onSurfaceVariant)),
+                const SizedBox(width: 4),
+                Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+              ],
+            ),
+            onTap: () => _pickSelfDestruct(context, session, chat.id),
+          ),
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+            title: const Text('الوسائط والروابط والملفات', style: TextStyle(fontSize: 16.5)),
+            trailing: Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+            onTap: () => _showMediaSheet(context, session, chat),
+          ),
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+            title: const Text('المميزة بنجمة', style: TextStyle(fontSize: 16.5)),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('$starredCount', style: TextStyle(fontSize: 15, color: scheme.onSurfaceVariant)),
+                const SizedBox(width: 4),
+                Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+              ],
+            ),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => StarredMessagesScreen(chatId: chat.id)),
+            ),
+          ),
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+            title: const Text('بحث المحادثة', style: TextStyle(fontSize: 16.5)),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.search_rounded, size: 22, color: scheme.onSurfaceVariant),
+                const SizedBox(width: 4),
+                Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+              ],
+            ),
+            onTap: () => Navigator.of(context).pop('search'),
+          ),
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+            title: const Text('خلفية', style: TextStyle(fontSize: 16.5)),
+            trailing: Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => WallpaperSettingsScreen(chatId: chat.id)),
+            ),
+          ),
+
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            child: Divider(),
+          ),
+
+          if (chat.isGroup) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+              child: Text(
+                '${chat.members.length} عضو',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            // شبكة الأعضاء من 3 أعمدة كما في JERNAS مع زر (+) الدائري لإضافة عضو
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 0.92,
+                ),
+                itemCount: orderedMembers.length + 1,
+                itemBuilder: (context, index) {
+                  if (index == orderedMembers.length) {
+                    return _AddMemberGridItem(
+                      onTap: _busy ? null : () => _addMembers(context),
+                    );
+                  }
+                  final member = orderedMembers[index];
+                  final isMe = member.id == session.me?.id;
+                  return _MemberGridItem(
+                    member: member,
+                    label: isMe ? 'أنت' : member.displayName,
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: TextButton.icon(
+                onPressed: _busy ? null : () => _leave(context),
+                icon: Icon(Icons.logout_rounded, color: scheme.error),
+                label: Text('مغادرة المجموعة', style: TextStyle(color: scheme.error)),
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _AddMemberBubble extends StatelessWidget {
-  const _AddMemberBubble({this.onTap});
+class _ActionCircleButton extends StatelessWidget {
+  const _ActionCircleButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      customBorder: const CircleBorder(),
+      onTap: onTap,
+      child: Container(
+        width: 58,
+        height: 58,
+        decoration: const BoxDecoration(
+          color: Color(0xFF6B7BFF),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: Colors.white, size: 27),
+      ),
+    );
+  }
+}
+
+class _MemberGridItem extends StatelessWidget {
+  const _MemberGridItem({required this.member, required this.label});
+
+  final User member;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Avatar(
+          name: member.displayName,
+          color: member.avatarColor,
+          imageUrl: member.avatarUrl,
+          size: 68,
+          online: member.online,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: scheme.onSurface.withValues(alpha: 0.85),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AddMemberGridItem extends StatelessWidget {
+  const _AddMemberGridItem({this.onTap});
 
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final scheme = Theme.of(context).colorScheme;
-    return SizedBox(
-      width: 68,
-      child: Column(
-        children: [
-          InkWell(
-            onTap: onTap,
-            customBorder: const CircleBorder(),
-            child: Container(
-              width: 54,
-              height: 54,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: scheme.primary.withValues(alpha: 0.6), width: 1.5),
-                color: scheme.primary.withValues(alpha: 0.08),
-              ),
-              child: Icon(Icons.person_add_alt_1_rounded, size: 23, color: scheme.primary),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: 68,
+            height: 68,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isDark
+                  ? const Color(0xFF222634)
+                  : scheme.surfaceContainerHighest.withValues(alpha: 0.7),
             ),
+            child: Icon(Icons.add_rounded, size: 32, color: scheme.onSurfaceVariant),
           ),
-          const SizedBox(height: 5),
-          Text(
-            'إضافة',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, color: scheme.primary),
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'إضافة',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
+        ),
+      ],
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'calls_screen.dart';
 import 'chats_screen.dart';
 import 'contacts_screen.dart';
 import 'me_screen.dart';
@@ -22,6 +23,7 @@ class _HomeShellState extends State<HomeShell> {
         children: const [
           ChatsScreen(),
           ContactsScreen(),
+          CallsScreen(),
           MeScreen(),
         ],
       ),
@@ -30,14 +32,19 @@ class _HomeShellState extends State<HomeShell> {
         onDestinationSelected: (value) => setState(() => _index = value),
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.chat_bubble_outline_rounded),
-            selectedIcon: Icon(Icons.chat_bubble_rounded),
+            icon: Icon(Icons.sms_outlined),
+            selectedIcon: Icon(Icons.sms_rounded),
             label: 'المحادثات',
           ),
           NavigationDestination(
-            icon: Icon(Icons.contacts_outlined),
-            selectedIcon: Icon(Icons.contacts_rounded),
+            icon: Icon(Icons.contact_phone_outlined),
+            selectedIcon: Icon(Icons.contact_phone_rounded),
             label: 'جهات الاتصال',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.call_outlined),
+            selectedIcon: Icon(Icons.call_rounded),
+            label: 'المكالمات',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline_rounded),

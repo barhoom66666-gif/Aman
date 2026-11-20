@@ -5,7 +5,7 @@ Color colorFromHex(String value) {
   var hex = value.replaceAll('#', '').trim();
   if (hex.length == 6) hex = 'FF$hex';
   final parsed = int.tryParse(hex, radix: 16);
-  return Color(parsed ?? 0xFF0E9F9A);
+  return Color(parsed ?? 0xFF6B7BFF);
 }
 
 String formatTime(int millis) {
@@ -13,6 +13,7 @@ String formatTime(int millis) {
   return DateFormat('HH:mm', 'ar').format(date);
 }
 
+/// تنسيق وقت المحادثات بأسلوب JERNAS: "HH:mm" لليوم، "أمس" للأمس، و"نوفمبر ٠٥" للتواريخ الأقدم.
 String formatChatTime(int millis) {
   final date = DateTime.fromMillisecondsSinceEpoch(millis);
   final now = DateTime.now();
@@ -21,8 +22,22 @@ String formatChatTime(int millis) {
   final diff = today.difference(day).inDays;
   if (diff == 0) return DateFormat('HH:mm', 'ar').format(date);
   if (diff == 1) return 'أمس';
-  if (diff < 7) return DateFormat('EEEE', 'ar').format(date);
-  return DateFormat('dd/MM/yyyy', 'ar').format(date);
+  final month = DateFormat('MMMM', 'ar').format(date);
+  final dayNum = _toArabicIndicDigits(date.day.toString().padLeft(2, '0'));
+  return '$month $dayNum';
+}
+
+String _toArabicIndicDigits(String input) {
+  const digits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+  final buf = StringBuffer();
+  for (final code in input.codeUnits) {
+    if (code >= 0x30 && code <= 0x39) {
+      buf.write(digits[code - 0x30]);
+    } else {
+      buf.writeCharCode(code);
+    }
+  }
+  return buf.toString();
 }
 
 String formatDaySeparator(int millis) {
@@ -84,6 +99,11 @@ String phoneDigits(String value) {
 /// يعرض رقم الهاتف بصيغة دولية بسيطة، أو اسم المستخدم إن لم يُضف رقم.
 String userHandle({String? phone, String? username}) {
   final digits = phoneDigits(phone ?? '');
-  if (digits.isNotEmpty) return '+$digits';
+  if (digits.isNotEmpty) {
+    if (digits.startsWith('971') && digits.length > 3) {
+      return '+971 ${digits.substring(3)}';
+    }
+    return '+$digits';
+  }
   return '@${username ?? ''}';
 }

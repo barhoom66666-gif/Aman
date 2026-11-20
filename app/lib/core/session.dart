@@ -22,6 +22,7 @@ const _kServer = 'aman.server';
 const _kTheme = 'aman.theme';
 const _kPins = 'aman.pins';
 const _kWalls = 'aman.wallpapers';
+const _kPrefs = 'aman.prefs';
 
 class Session extends ChangeNotifier {
   static const _storage = FlutterSecureStorage(
@@ -36,9 +37,35 @@ class Session extends ChangeNotifier {
   bool initialized = false;
   String? connectionError;
   bool connected = false;
-  ThemeMode themeMode = ThemeMode.system;
+  ThemeMode themeMode = ThemeMode.dark;
   final Set<String> pinnedChatIds = {};
   final Map<String, String> chatWallpapers = {};
+
+  // إعدادات وتفضيلات واجهة JERNAS المحلية
+  bool showNotesInHeader = true;
+  bool showCalendarInHeader = true;
+  bool showLastSeen = true;
+  bool readReceipts = true;
+  String defaultSelfDestruct = 'إيقاف';
+  bool screenLock = true;
+  String screenLockTimeout = '5 دقائق';
+  bool blockGroupAdd = false;
+  bool blockPhoneAdd = false;
+  bool msgShowNotification = true;
+  String msgSound = 'صافرة';
+  bool msgReactionNotifications = true;
+  bool grpShowNotification = true;
+  String grpSound = 'صافرة';
+  bool grpReactionNotifications = true;
+  bool showNotificationPreview = true;
+  final Set<String> mutedChatIds = {};
+  final Set<String> mutedCallChatIds = {};
+  final Map<String, String> chatSelfDestruct = {};
+  final Map<String, String> chatAdminMessage = {};
+  final Map<String, String> chatTask = {};
+  final Set<String> starredMessageIds = {};
+  final List<Map<String, dynamic>> personalNotes = [];
+  final List<Map<String, dynamic>> calendarEvents = [];
 
   final Map<String, Chat> chats = {};
   final Map<String, List<Message>> messagesByChat = {};
@@ -69,8 +96,8 @@ class Session extends ChangeNotifier {
       final savedTheme = await _storage.read(key: _kTheme);
       themeMode = switch (savedTheme) {
         'light' => ThemeMode.light,
-        'dark' => ThemeMode.dark,
-        _ => ThemeMode.system,
+        'system' => ThemeMode.system,
+        _ => ThemeMode.dark,
       };
       final savedPins = await _storage.read(key: _kPins);
       if (savedPins != null && savedPins.isNotEmpty) {
@@ -89,6 +116,12 @@ class Session extends ChangeNotifier {
         } catch (_) {
           // تجاهل التخزين التالف
         }
+      }
+      final savedPrefs = await _storage.read(key: _kPrefs);
+      if (savedPrefs != null && savedPrefs.isNotEmpty) {
+        try {
+          _applyPrefsJson((jsonDecode(savedPrefs) as Map).cast<String, dynamic>());
+        } catch (_) {}
       }
 
       final savedToken = await _storage.read(key: _kToken);
@@ -213,7 +246,7 @@ class Session extends ChangeNotifier {
     _notify();
   }
 
-  String? wallpaperFor(String chatId) => chatWallpapers[chatId];
+  String? wallpaperFor(String chatId) => chatWallpapers[chatId] ?? chatWallpapers['__global__'];
 
   Future<void> setWallpaper(String chatId, String? style) async {
     if (style == null || style.isEmpty || style == 'default') {
@@ -223,6 +256,160 @@ class Session extends ChangeNotifier {
     }
     await _storage.write(key: _kWalls, value: jsonEncode(chatWallpapers));
     _notify();
+  }
+
+  Future<void> resetAllWallpapers() async {
+    chatWallpapers.clear();
+    await _storage.delete(key: _kWalls);
+    _notify();
+  }
+
+  void _applyPrefsJson(Map<String, dynamic> map) {
+    showNotesInHeader = map['showNotesInHeader'] as bool? ?? showNotesInHeader;
+    showCalendarInHeader = map['showCalendarInHeader'] as bool? ?? showCalendarInHeader;
+    showLastSeen = map['showLastSeen'] as bool? ?? showLastSeen;
+    readReceipts = map['readReceipts'] as bool? ?? readReceipts;
+    defaultSelfDestruct = map['defaultSelfDestruct'] as String? ?? defaultSelfDestruct;
+    screenLock = map['screenLock'] as bool? ?? screenLock;
+    screenLockTimeout = map['screenLockTimeout'] as String? ?? screenLockTimeout;
+    blockGroupAdd = map['blockGroupAdd'] as bool? ?? blockGroupAdd;
+    blockPhoneAdd = map['blockPhoneAdd'] as bool? ?? blockPhoneAdd;
+    msgShowNotification = map['msgShowNotification'] as bool? ?? msgShowNotification;
+    msgSound = map['msgSound'] as String? ?? msgSound;
+    msgReactionNotifications = map['msgReactionNotifications'] as bool? ?? msgReactionNotifications;
+    grpShowNotification = map['grpShowNotification'] as bool? ?? grpShowNotification;
+    grpSound = map['grpSound'] as String? ?? grpSound;
+    grpReactionNotifications = map['grpReactionNotifications'] as bool? ?? grpReactionNotifications;
+    showNotificationPreview = map['showNotificationPreview'] as bool? ?? showNotificationPreview;
+    if (map['mutedChatIds'] is List) {
+      mutedChatIds
+        ..clear()
+        ..addAll((map['mutedChatIds'] as List).map((e) => '$e'));
+    }
+    if (map['mutedCallChatIds'] is List) {
+      mutedCallChatIds
+        ..clear()
+        ..addAll((map['mutedCallChatIds'] as List).map((e) => '$e'));
+    }
+    if (map['chatSelfDestruct'] is Map) {
+      chatSelfDestruct
+        ..clear()
+        ..addAll((map['chatSelfDestruct'] as Map).map((k, v) => MapEntry('$k', '$v')));
+    }
+    if (map['chatAdminMessage'] is Map) {
+      chatAdminMessage
+        ..clear()
+        ..addAll((map['chatAdminMessage'] as Map).map((k, v) => MapEntry('$k', '$v')));
+    }
+    if (map['chatTask'] is Map) {
+      chatTask
+        ..clear()
+        ..addAll((map['chatTask'] as Map).map((k, v) => MapEntry('$k', '$v')));
+    }
+    if (map['starredMessageIds'] is List) {
+      starredMessageIds
+        ..clear()
+        ..addAll((map['starredMessageIds'] as List).map((e) => '$e'));
+    }
+    if (map['personalNotes'] is List) {
+      personalNotes
+        ..clear()
+        ..addAll((map['personalNotes'] as List).whereType<Map>().map((e) => e.cast<String, dynamic>()));
+    }
+    if (map['calendarEvents'] is List) {
+      calendarEvents
+        ..clear()
+        ..addAll((map['calendarEvents'] as List).whereType<Map>().map((e) => e.cast<String, dynamic>()));
+    }
+  }
+
+  Future<void> savePrefs() async {
+    final data = {
+      'showNotesInHeader': showNotesInHeader,
+      'showCalendarInHeader': showCalendarInHeader,
+      'showLastSeen': showLastSeen,
+      'readReceipts': readReceipts,
+      'defaultSelfDestruct': defaultSelfDestruct,
+      'screenLock': screenLock,
+      'screenLockTimeout': screenLockTimeout,
+      'blockGroupAdd': blockGroupAdd,
+      'blockPhoneAdd': blockPhoneAdd,
+      'msgShowNotification': msgShowNotification,
+      'msgSound': msgSound,
+      'msgReactionNotifications': msgReactionNotifications,
+      'grpShowNotification': grpShowNotification,
+      'grpSound': grpSound,
+      'grpReactionNotifications': grpReactionNotifications,
+      'showNotificationPreview': showNotificationPreview,
+      'mutedChatIds': mutedChatIds.toList(),
+      'mutedCallChatIds': mutedCallChatIds.toList(),
+      'chatSelfDestruct': chatSelfDestruct,
+      'chatAdminMessage': chatAdminMessage,
+      'chatTask': chatTask,
+      'starredMessageIds': starredMessageIds.toList(),
+      'personalNotes': personalNotes,
+      'calendarEvents': calendarEvents,
+    };
+    await _storage.write(key: _kPrefs, value: jsonEncode(data));
+    _notify();
+  }
+
+  bool isChatMuted(String chatId) => mutedChatIds.contains(chatId);
+
+  Future<void> toggleChatMuted(String chatId) async {
+    if (!mutedChatIds.remove(chatId)) mutedChatIds.add(chatId);
+    await savePrefs();
+  }
+
+  bool isCallMuted(String chatId) => mutedCallChatIds.contains(chatId);
+
+  Future<void> toggleCallMuted(String chatId) async {
+    if (!mutedCallChatIds.remove(chatId)) mutedCallChatIds.add(chatId);
+    await savePrefs();
+  }
+
+  String selfDestructFor(String chatId) => chatSelfDestruct[chatId] ?? 'أسبوع واحد';
+
+  Future<void> setSelfDestructFor(String chatId, String value) async {
+    chatSelfDestruct[chatId] = value;
+    await savePrefs();
+  }
+
+  String adminMessageFor(String chatId) => chatAdminMessage[chatId] ?? 'تفتيش';
+
+  Future<void> setAdminMessageFor(String chatId, String value) async {
+    chatAdminMessage[chatId] = value;
+    await savePrefs();
+  }
+
+  String taskFor(String chatId) => chatTask[chatId] ?? '';
+
+  Future<void> setTaskFor(String chatId, String value) async {
+    chatTask[chatId] = value;
+    await savePrefs();
+  }
+
+  bool isStarred(String messageId) => starredMessageIds.contains(messageId);
+
+  Future<void> toggleStarred(String messageId) async {
+    if (!starredMessageIds.remove(messageId)) starredMessageIds.add(messageId);
+    await savePrefs();
+  }
+
+  List<Message> starredMessagesIn(String chatId) {
+    final all = messagesByChat[chatId] ?? const [];
+    return all.where((m) => starredMessageIds.contains(m.id)).toList();
+  }
+
+  List<Message> get allStarredMessages {
+    final result = <Message>[];
+    for (final list in messagesByChat.values) {
+      for (final msg in list) {
+        if (starredMessageIds.contains(msg.id)) result.add(msg);
+      }
+    }
+    result.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return result;
   }
 
   Future<void> uploadAvatar(Uint8List bytes, String mime) async {

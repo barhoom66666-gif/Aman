@@ -8,7 +8,7 @@ String initialsOf(String name) {
   if (parts.isEmpty) return '؟';
   if (parts.length == 1) {
     final word = parts.first;
-    return word.substring(0, word.length >= 1 ? 1 : 0).toUpperCase();
+    return word.substring(0, word.isNotEmpty ? 1 : 0).toUpperCase();
   }
   return (parts[0].substring(0, 1) + parts[1].substring(0, 1)).toUpperCase();
 }
@@ -21,7 +21,7 @@ class Avatar extends StatelessWidget {
     this.imageUrl,
     this.size = 48,
     this.online = false,
-    this.showOnline = true,
+    this.showOnline = false,
     this.icon,
   });
 
@@ -40,23 +40,26 @@ class Avatar extends StatelessWidget {
     return '${AppConfig.base}$value';
   }
 
-  Widget _initials() {
-    if (icon != null) return Icon(icon, color: Colors.white, size: size * 0.46);
-    return Text(
-      initialsOf(name),
-      style: TextStyle(
-        color: Colors.white,
-        fontSize: size * 0.36,
-        fontWeight: FontWeight.w700,
-      ),
+  /// أسلوب JERNAS: خلفية دائرية بلون داكن من لون المستخدم، وأيقونة شخص ملونة بالداخل.
+  Widget _placeholder(Color accent) {
+    final iconData = icon ?? Icons.person_rounded;
+    return Icon(
+      iconData,
+      color: accent,
+      size: size * 0.56,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final bg = colorFromHex(color);
-    final dot = size * 0.26;
+    final accent = jernasAccentFor(name.isEmpty ? color : name, color);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final circleBg = isDark
+        ? Color.lerp(const Color(0xFF1A1E2B), accent, 0.24)!
+        : Color.lerp(const Color(0xFFEFF2FA), accent, 0.22)!;
+    final dot = size * 0.25;
     final image = _resolvedImage;
+
     return SizedBox(
       width: size,
       height: size,
@@ -68,16 +71,12 @@ class Avatar extends StatelessWidget {
             clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [bg, Color.lerp(bg, Colors.black, 0.22)!],
-              ),
+              color: circleBg,
             ),
             child: Stack(
               fit: StackFit.expand,
               children: [
-                Center(child: _initials()),
+                Center(child: _placeholder(accent)),
                 if (image != null)
                   Image.network(
                     image,
@@ -110,4 +109,22 @@ class Avatar extends StatelessWidget {
       ),
     );
   }
+}
+
+/// يختار لونًا متناسقًا مع ألوان الأفاتار في JERNAS (أزرق، ذهبي، بنفسجي، برتقالي، أخضر).
+Color jernasAccentFor(String seed, String fallbackHex) {
+  const palette = <Color>[
+    Color(0xFF4299E1), // أزرق
+    Color(0xFFD69E2E), // ذهبي/أصفر
+    Color(0xFF9F7AEA), // بنفسجي
+    Color(0xFFED8936), // برتقالي
+    Color(0xFF38B2AC), // تركوازي/أخضر
+    Color(0xFF667EEA), // نيلي
+  ];
+  var hash = 0;
+  for (final code in seed.codeUnits) {
+    hash = (hash * 31 + code) & 0x7fffffff;
+  }
+  if (hash == 0) return colorFromHex(fallbackHex);
+  return palette[hash % palette.length];
 }

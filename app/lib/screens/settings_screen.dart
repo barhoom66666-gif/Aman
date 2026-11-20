@@ -157,7 +157,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('الإعدادات')),
+      appBar: AppBar(title: const Text('الحساب')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
