@@ -13,7 +13,7 @@ on:
         default: ""
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: android-${{ github.ref }}
@@ -70,17 +70,21 @@ jobs:
         working-directory: app
         run: flutter build apk --release --dart-define=AMAN_API="$AMAN_API"
 
+      - name: تجهيز ملف APK
+        run: cp app/build/app/outputs/flutter-apk/app-release.apk aman.apk
+
       - name: ملخص البناء
         run: |
-          APK=app/build/app/outputs/flutter-apk/app-release.apk
+          APK=aman.apk
           SIZE=$(du -h "$APK" | cut -f1)
           {
             echo "### Aman — تم بناء APK بنجاح"
             echo ""
             echo "- الحجم: **$SIZE**"
+            echo "- رابط التحميل المباشر لملف APK (بدون فك ضغط):"
+            echo "  https://github.com/${{ github.repository }}/releases/download/latest/aman.apk"
             echo "- عنوان الخادم المضمّن: \`$AMAN_API\`"
             echo "- يمكن تغييره لاحقًا من داخل التطبيق (شاشة الترحيب أو الإعدادات)."
-            echo "- التوقيع: مفتاح debug — للتجربة فقط."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
@@ -89,3 +93,14 @@ jobs:
           path: app/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: نشر رابط تحميل مباشر للـ APK في Releases
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "Aman v0.5.0 — أحدث نسخة APK جاهزة للتثبيت"
+          body: |
+            اضغط على ملف **`aman.apk`** بالأسفل لتحميل التطبيق وتثبيته مباشرة على هاتفك (بدون فك ضغط).
+          files: aman.apk
+          prerelease: false
