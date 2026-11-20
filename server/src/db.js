@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
   username      TEXT NOT NULL UNIQUE COLLATE NOCASE,
   display_name  TEXT NOT NULL,
   phone         TEXT,
+  avatar_url    TEXT,
   password_hash TEXT NOT NULL,
   identity_key  TEXT NOT NULL,
   avatar_color  TEXT NOT NULL,
@@ -95,6 +96,9 @@ export function openDatabase(file) {
   const columns = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
   if (!columns.includes('phone')) {
     db.exec('ALTER TABLE users ADD COLUMN phone TEXT');
+  }
+  if (!columns.includes('avatar_url')) {
+    db.exec('ALTER TABLE users ADD COLUMN avatar_url TEXT');
   }
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_phone_unique ON users(phone) WHERE phone IS NOT NULL');
 

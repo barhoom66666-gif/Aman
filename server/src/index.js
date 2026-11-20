@@ -44,7 +44,7 @@ app.use('/api/auth', (req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '512kb' }));
+app.use(express.json({ limit: '2mb' }));
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'aman', time: Date.now() }));
 app.use('/api', createRouter({ db, hub, mediaDir: MEDIA_DIR, maxMediaBytes: MAX_MEDIA_BYTES }));
 

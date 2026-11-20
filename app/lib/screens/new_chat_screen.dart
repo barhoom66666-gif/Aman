@@ -174,6 +174,7 @@ class _DirectTabState extends State<_DirectTab> {
                       leading: Avatar(
                         name: user.displayName,
                         color: user.avatarColor,
+                        imageUrl: user.avatarUrl,
                         size: 46,
                         online: user.online,
                       ),
@@ -322,7 +323,7 @@ class _GroupTabState extends State<_GroupTab> {
                     final user = _results[index];
                     final selected = _selected.containsKey(user.username);
                     return ListTile(
-                      leading: Avatar(name: user.displayName, color: user.avatarColor, size: 44),
+                      leading: Avatar(name: user.displayName, color: user.avatarColor, imageUrl: user.avatarUrl, size: 44),
                       title: Text(user.displayName),
                       subtitle: Text(
                         userHandle(phone: user.phone, username: user.username),

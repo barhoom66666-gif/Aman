@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/config.dart';
 import '../utils.dart';
 
 String initialsOf(String name) {
@@ -17,6 +18,7 @@ class Avatar extends StatelessWidget {
     super.key,
     required this.name,
     required this.color,
+    this.imageUrl,
     this.size = 48,
     this.online = false,
     this.showOnline = true,
@@ -25,15 +27,36 @@ class Avatar extends StatelessWidget {
 
   final String name;
   final String color;
+  final String? imageUrl;
   final double size;
   final bool online;
   final bool showOnline;
   final IconData? icon;
 
+  String? get _resolvedImage {
+    final value = imageUrl;
+    if (value == null || value.isEmpty) return null;
+    if (value.startsWith('http://') || value.startsWith('https://')) return value;
+    return '${AppConfig.base}$value';
+  }
+
+  Widget _initials() {
+    if (icon != null) return Icon(icon, color: Colors.white, size: size * 0.46);
+    return Text(
+      initialsOf(name),
+      style: TextStyle(
+        color: Colors.white,
+        fontSize: size * 0.36,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bg = colorFromHex(color);
     final dot = size * 0.26;
+    final image = _resolvedImage;
     return SizedBox(
       width: size,
       height: size,
@@ -42,6 +65,7 @@ class Avatar extends StatelessWidget {
           Container(
             width: size,
             height: size,
+            clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: LinearGradient(
@@ -50,17 +74,20 @@ class Avatar extends StatelessWidget {
                 colors: [bg, Color.lerp(bg, Colors.black, 0.22)!],
               ),
             ),
-            alignment: Alignment.center,
-            child: icon != null
-                ? Icon(icon, color: Colors.white, size: size * 0.46)
-                : Text(
-                    initialsOf(name),
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: size * 0.36,
-                      fontWeight: FontWeight.w700,
-                    ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Center(child: _initials()),
+                if (image != null)
+                  Image.network(
+                    image,
+                    fit: BoxFit.cover,
+                    width: size,
+                    height: size,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                   ),
+              ],
+            ),
           ),
           if (showOnline && online)
             Positioned(

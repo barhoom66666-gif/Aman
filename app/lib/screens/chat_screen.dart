@@ -203,6 +203,7 @@ class _ChatScreenState extends State<ChatScreen> {
               Avatar(
                 name: chat.title,
                 color: chat.avatarColor,
+                imageUrl: peer?.avatarUrl,
                 size: 40,
                 online: peer?.online ?? false,
                 icon: chat.isGroup ? Icons.groups_rounded : null,
@@ -718,7 +719,7 @@ class _ChatInfoSheetState extends State<_ChatInfoSheet> {
                           },
                           title: Text(user.displayName),
                           subtitle: Text('@${user.username}', textDirection: TextDirection.ltr),
-                          secondary: Avatar(name: user.displayName, color: user.avatarColor, size: 38),
+                          secondary: Avatar(name: user.displayName, color: user.avatarColor, imageUrl: user.avatarUrl, size: 38),
                         );
                       },
                     ),
@@ -785,6 +786,7 @@ class _ChatInfoSheetState extends State<_ChatInfoSheet> {
     final chat = session.chats[widget.chatId];
     final scheme = Theme.of(context).colorScheme;
     if (chat == null) return const SizedBox.shrink();
+    final peer = chat.isGroup ? null : chat.peerFor(session.me?.id ?? '');
 
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
@@ -798,6 +800,7 @@ class _ChatInfoSheetState extends State<_ChatInfoSheet> {
                 child: Avatar(
                   name: chat.title,
                   color: chat.avatarColor,
+                  imageUrl: peer?.avatarUrl,
                   size: 76,
                   icon: chat.isGroup ? Icons.groups_rounded : null,
                 ),
@@ -824,11 +827,12 @@ class _ChatInfoSheetState extends State<_ChatInfoSheet> {
                     leading: Avatar(
                       name: member.displayName,
                       color: member.avatarColor,
+                      imageUrl: member.avatarUrl,
                       size: 40,
                       online: member.online,
                     ),
                     title: Text(member.displayName),
-                    subtitle: Text('@${member.username}', textDirection: TextDirection.ltr),
+                    subtitle: Text(userHandle(phone: member.phone, username: member.username), textDirection: TextDirection.ltr),
                     trailing: member.id == chat.createdBy
                         ? const Chip(label: Text('منشئ', style: TextStyle(fontSize: 10)), visualDensity: VisualDensity.compact)
                         : null,

@@ -225,6 +225,21 @@ test('تسجيل، محادثة فردية مشفرة، إشعار فوري', as
   });
   assert.ok(localLogin.token);
 
+  const directory = await api('/api/users', { token: ali.token });
+  assert.ok(directory.users.some((u) => u.username === 'sara_test'));
+
+  const png =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=';
+  const withAvatar = await api('/api/me/avatar', {
+    method: 'POST',
+    token: sara.token,
+    body: { image: png, mime: 'image/png' },
+  });
+  assert.match(withAvatar.user.avatarUrl, /^\/api\/avatars\/avatar-/);
+  const fetchedAvatar = await api(withAvatar.user.avatarUrl.split('?')[0]);
+  assert.ok(Buffer.isBuffer(fetchedAvatar));
+  assert.ok(fetchedAvatar.length > 20);
+
   const { chat } = await api('/api/chats/direct', {
     method: 'POST',
     token: ali.token,

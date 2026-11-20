@@ -172,6 +172,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Avatar(
                     name: me?.displayName ?? '',
                     color: me?.avatarColor ?? '#0E9F9A',
+                    imageUrl: me?.avatarUrl,
                     size: 62,
                   ),
                   const SizedBox(width: 14),
@@ -319,7 +320,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Center(
             child: Column(
               children: [
-                Text('Aman 0.2.1', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                Text('Aman 0.3.0', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
                 const SizedBox(height: 4),
                 Text(
                   'لا مكالمات · لا إعلانات · لا تتبّع',

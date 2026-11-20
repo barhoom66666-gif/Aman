@@ -39,7 +39,7 @@ class MyQrScreen extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
           child: Column(
             children: [
-              Avatar(name: me?.displayName ?? '', color: me?.avatarColor ?? '#0E9F9A', size: 72),
+              Avatar(name: me?.displayName ?? '', color: me?.avatarColor ?? '#0E9F9A', imageUrl: me?.avatarUrl, size: 72),
               const SizedBox(height: 12),
               Text(
                 me?.displayName ?? '',

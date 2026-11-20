@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -18,6 +19,8 @@ import 'db.dart';
 const _kToken = 'aman.token';
 const _kUser = 'aman.user';
 const _kServer = 'aman.server';
+const _kTheme = 'aman.theme';
+const _kPins = 'aman.pins';
 
 class Session extends ChangeNotifier {
   static const _storage = FlutterSecureStorage(
@@ -32,6 +35,8 @@ class Session extends ChangeNotifier {
   bool initialized = false;
   String? connectionError;
   bool connected = false;
+  ThemeMode themeMode = ThemeMode.system;
+  final Set<String> pinnedChatIds = {};
 
   final Map<String, Chat> chats = {};
   final Map<String, List<Message>> messagesByChat = {};
@@ -58,6 +63,21 @@ class Session extends ChangeNotifier {
         AppConfig.setBase(savedServer);
       }
       await CryptoService.loadOrCreateIdentity();
+
+      final savedTheme = await _storage.read(key: _kTheme);
+      themeMode = switch (savedTheme) {
+        'light' => ThemeMode.light,
+        'dark' => ThemeMode.dark,
+        _ => ThemeMode.system,
+      };
+      final savedPins = await _storage.read(key: _kPins);
+      if (savedPins != null && savedPins.isNotEmpty) {
+        try {
+          pinnedChatIds.addAll((jsonDecode(savedPins) as List).cast<String>());
+        } catch (_) {
+          // تجاهل التخزين التالف بدل منع تسجيل الدخول
+        }
+      }
 
       final savedToken = await _storage.read(key: _kToken);
       final savedUser = await _storage.read(key: _kUser);
@@ -162,6 +182,34 @@ class Session extends ChangeNotifier {
 
   Future<void> _applyProfile({String? displayName, String? phone}) async {
     final data = await api.updateProfile(displayName: displayName, phone: phone);
+    me = User.fromJson((data['user'] as Map).cast<String, dynamic>());
+    await _storage.write(key: _kUser, value: jsonEncode(me!.toJson()));
+    _notify();
+  }
+
+  Future<void> setThemeMode(ThemeMode mode) async {
+    themeMode = mode;
+    await _storage.write(key: _kTheme, value: mode.name);
+    _notify();
+  }
+
+  bool isPinned(String chatId) => pinnedChatIds.contains(chatId);
+
+  Future<void> togglePin(String chatId) async {
+    if (!pinnedChatIds.remove(chatId)) pinnedChatIds.add(chatId);
+    await _storage.write(key: _kPins, value: jsonEncode(pinnedChatIds.toList()));
+    _notify();
+  }
+
+  Future<void> uploadAvatar(Uint8List bytes, String mime) async {
+    final data = await api.uploadAvatar(bytes, mime);
+    me = User.fromJson((data['user'] as Map).cast<String, dynamic>());
+    await _storage.write(key: _kUser, value: jsonEncode(me!.toJson()));
+    _notify();
+  }
+
+  Future<void> removeAvatar() async {
+    final data = await api.removeAvatar();
     me = User.fromJson((data['user'] as Map).cast<String, dynamic>());
     await _storage.write(key: _kUser, value: jsonEncode(me!.toJson()));
     _notify();

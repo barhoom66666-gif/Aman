@@ -110,6 +110,14 @@ class ApiClient {
         if (phone != null) 'phone': phone,
       });
 
+  Future<Map<String, dynamic>> uploadAvatar(Uint8List bytes, String mime) =>
+      _send('POST', '/api/me/avatar', body: {
+        'image': base64Encode(bytes),
+        'mime': mime,
+      }, timeout: const Duration(seconds: 60));
+
+  Future<Map<String, dynamic>> removeAvatar() => _send('DELETE', '/api/me/avatar');
+
   Future<void> updateIdentityKey(String identityKey) =>
       _send('POST', '/api/me/identity', body: {'identityKey': identityKey});
 

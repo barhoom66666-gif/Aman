@@ -50,6 +50,8 @@ function messageOut(row) {
 
 export function createRouter({ db, hub, mediaDir, maxMediaBytes }) {
   fs.mkdirSync(mediaDir, { recursive: true });
+  const avatarDir = path.join(mediaDir, 'avatars');
+  fs.mkdirSync(avatarDir, { recursive: true });
   const router = express.Router();
   const auth = requireAuth(db);
 
@@ -266,6 +268,54 @@ export function createRouter({ db, hub, mediaDir, maxMediaBytes }) {
     res.json({ user: publicUser({ ...req.user, display_name: displayName, phone }) });
   });
 
+  // ---------- الصورة الشخصية ----------
+
+  function removeAvatarFiles(userId) {
+    for (const ext of ['jpg', 'png', 'webp']) {
+      try {
+        fs.unlinkSync(path.join(avatarDir, `avatar-${userId}.${ext}`));
+      } catch {
+        // الملف غير موجود أصلًا
+      }
+    }
+  }
+
+  router.post('/me/avatar', auth, (req, res) => {
+    const raw = typeof req.body?.image === 'string' ? req.body.image : '';
+    const base64 = raw.replace(/^data:image\/[a-z0-9.+-]+;base64,/i, '');
+    if (!base64) throw new HttpError(400, 'bad_image', 'الصورة مفقودة');
+    const bytes = Buffer.from(base64, 'base64');
+    if (bytes.length < 20) throw new HttpError(400, 'bad_image', 'الصورة غير صالحة');
+    if (bytes.length > 1_500_000) throw new HttpError(413, 'too_large', 'الصورة كبيرة جدًا (الحد 1.5 ميجا)');
+
+    const mime = String(req.body?.mime ?? 'image/jpeg').toLowerCase();
+    const ext = mime.includes('png') ? 'png' : mime.includes('webp') ? 'webp' : 'jpg';
+    removeAvatarFiles(req.user.id);
+    const file = `avatar-${req.user.id}.${ext}`;
+    fs.writeFileSync(path.join(avatarDir, file), bytes);
+
+    const url = `/api/avatars/${file}?v=${now()}`;
+    db.prepare('UPDATE users SET avatar_url = ? WHERE id = ?').run(url, req.user.id);
+    res.json({ user: publicUser({ ...req.user, avatar_url: url }) });
+  });
+
+  router.delete('/me/avatar', auth, (req, res) => {
+    removeAvatarFiles(req.user.id);
+    db.prepare('UPDATE users SET avatar_url = NULL WHERE id = ?').run(req.user.id);
+    res.json({ user: publicUser({ ...req.user, avatar_url: null }) });
+  });
+
+  router.get('/avatars/:file', (req, res) => {
+    const file = path.basename(req.params.file);
+    if (!/^avatar-[a-z0-9]+\.[a-z0-9]+$/i.test(file)) {
+      throw new HttpError(404, 'not_found', 'الصورة غير موجودة');
+    }
+    const full = path.join(avatarDir, file);
+    if (!fs.existsSync(full)) throw new HttpError(404, 'not_found', 'الصورة غير موجودة');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.sendFile(full);
+  });
+
   // مفتاح الهوية لكل جهاز؛ عند الدخول من جهاز جديد يُحدَّث المفتاح العام
   // (نموذج جهاز واحد لكل حساب في هذه النسخة).
   router.post('/me/identity', auth, (req, res) => {
@@ -276,7 +326,14 @@ export function createRouter({ db, hub, mediaDir, maxMediaBytes }) {
 
   router.get('/users', auth, (req, res) => {
     const q = text(req.query.q ?? '', { min: 0, max: 40, field: 'البحث' });
-    if (!q) return res.json({ users: [] });
+    if (!q) {
+      const all = db
+        .prepare('SELECT * FROM users WHERE id <> ? ORDER BY last_seen DESC, username ASC LIMIT 100')
+        .all(req.user.id);
+      return res.json({
+        users: all.map((u) => ({ ...publicUser(u), online: hub.isOnline(u.id) })),
+      });
+    }
     const safe = q.replace(/[%_]/g, '');
     const like = `%${safe}%`;
     const digits = phoneQueryDigits(q);

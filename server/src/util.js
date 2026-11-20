@@ -87,6 +87,7 @@ export function publicUser(row) {
     username: row.username,
     displayName: row.display_name,
     phone: row.phone ?? null,
+    avatarUrl: row.avatar_url ?? null,
     avatarColor: row.avatar_color,
     identityKey: row.identity_key ?? undefined,
     lastSeen: row.last_seen ?? 0,
