@@ -64,9 +64,26 @@ void showError(BuildContext context, Object error) {
     ..showSnackBar(SnackBar(content: Text(text)));
 }
 
+/// يحوّل أي أرقام (عربية أو فارسية) إلى أرقام إنجليزية ويزيل + والمسافات و00.
+String phoneDigits(String value) {
+  final buffer = StringBuffer();
+  for (final rune in value.runes) {
+    if (rune >= 0x0660 && rune <= 0x0669) {
+      buffer.writeCharCode(0x30 + rune - 0x0660);
+    } else if (rune >= 0x06F0 && rune <= 0x06F9) {
+      buffer.writeCharCode(0x30 + rune - 0x06F0);
+    } else if (rune >= 0x30 && rune <= 0x39) {
+      buffer.writeCharCode(rune);
+    }
+  }
+  var digits = buffer.toString();
+  if (digits.startsWith('00')) digits = digits.substring(2);
+  return digits;
+}
+
 /// يعرض رقم الهاتف بصيغة دولية بسيطة، أو اسم المستخدم إن لم يُضف رقم.
 String userHandle({String? phone, String? username}) {
-  final digits = (phone ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+  final digits = phoneDigits(phone ?? '');
   if (digits.isNotEmpty) return '+$digits';
   return '@${username ?? ''}';
 }

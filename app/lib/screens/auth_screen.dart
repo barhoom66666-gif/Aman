@@ -34,7 +34,7 @@ class _AuthScreenState extends State<AuthScreen> {
     super.dispose();
   }
 
-  static String _phoneDigits(String value) => value.replaceAll(RegExp(r'[^0-9]'), '');
+  static String _normalizeDigits(String value) => phoneDigits(value);
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -44,7 +44,7 @@ class _AuthScreenState extends State<AuthScreen> {
     try {
       if (_register) {
         await session.register(
-          phone: _phoneDigits(_identifier.text),
+          phone: _normalizeDigits(_identifier.text),
           password: _password.text,
           displayName: _displayName.text.trim(),
         );
@@ -92,7 +92,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 Text(
                   _register
                       ? 'رقم هاتفك هو هويتك في Aman. مفتاحك الخاص يبقى على جهازك.'
-                      : 'أدخل رقم هاتفك وكلمة المرور للمتابعة.',
+                      : 'أدخل رقم هاتفك مع رمز الدولة، أو اسم المستخدم، وكلمة المرور.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: scheme.onSurfaceVariant,
@@ -100,6 +100,29 @@ class _AuthScreenState extends State<AuthScreen> {
                       ),
                 ),
                 const SizedBox(height: 26),
+                if (!_register) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.info_outline_rounded, size: 17, color: scheme.primary),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'أدخل رقم الهاتف مع رمز الدولة. إن كان حسابك قديمًا فسجّل الدخول باسم المستخدم.',
+                            style: TextStyle(fontSize: 11.5, height: 1.5),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                ],
                 if (_register) ...[
                   TextFormField(
                     controller: _displayName,
@@ -125,16 +148,17 @@ class _AuthScreenState extends State<AuthScreen> {
                   autocorrect: false,
                   decoration: InputDecoration(
                     labelText: _register ? 'رقم الهاتف' : 'رقم الهاتف أو اسم المستخدم',
-                    hintText: _register ? '+971 50 123 4567' : null,
+                    hintText: _register ? '+971 50 123 4567' : '+971501234567 أو اسم المستخدم',
+                    helperText: _register ? 'اكتبه بأرقام إنجليزية مع رمز الدولة' : null,
                     prefixIcon: Icon(_register ? Icons.phone_iphone_rounded : Icons.person_outline),
                   ),
                   validator: (v) {
                     final value = (v ?? '').trim();
-                    if (value.isEmpty) return 'أدخل رقم هاتفك';
+                    if (value.isEmpty) return _register ? 'أدخل رقم هاتفك' : 'أدخل رقم هاتفك أو اسم المستخدم';
                     if (_register) {
-                      final digits = _phoneDigits(value);
+                      final digits = _normalizeDigits(value);
                       if (digits.length < 7 || digits.length > 15) {
-                        return 'رقم غير صحيح — أدخله مع رمز الدولة (7 إلى 15 رقمًا)';
+                        return 'أدخل الرقم مع رمز الدولة (7–15 رقمًا)، مثال: +971501234567';
                       }
                     }
                     return null;
@@ -148,6 +172,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   onFieldSubmitted: (_) => _loading ? null : _submit(),
                   decoration: InputDecoration(
                     labelText: 'كلمة المرور',
+                    helperText: _register ? null : 'التي اخترتها عند إنشاء الحساب',
                     prefixIcon: const Icon(Icons.lock_outline),
                     suffixIcon: IconButton(
                       onPressed: () => setState(() => _obscure = !_obscure),
@@ -156,7 +181,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                   validator: (v) {
                     final value = v ?? '';
-                    if (_register && value.length < 8) return 'كلمة المرور 8 أحرف على الأقل';
+                    if (_register && value.length < 6) return 'كلمة المرور 6 أحرف على الأقل';
                     if (!_register && value.isEmpty) return 'أدخل كلمة المرور';
                     return null;
                   },

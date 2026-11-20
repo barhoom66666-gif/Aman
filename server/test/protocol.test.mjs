@@ -213,6 +213,18 @@ test('تسجيل، محادثة فردية مشفرة، إشعار فوري', as
   const foundByPhone = await api(`/api/users?q=${sara.user.phone}`, { token: ali.token });
   assert.equal(foundByPhone.users[0].username, 'sara_test');
 
+  const arabicPhone = sara.user.phone.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)]);
+  const foundByArabicPhone = await api(`/api/users?q=${encodeURIComponent(arabicPhone)}`, {
+    token: ali.token,
+  });
+  assert.equal(foundByArabicPhone.users[0].username, 'sara_test');
+
+  const localLogin = await api('/api/auth/login', {
+    method: 'POST',
+    body: { identifier: sara.user.phone.slice(-9), password: 'secret-pass-123' },
+  });
+  assert.ok(localLogin.token);
+
   const { chat } = await api('/api/chats/direct', {
     method: 'POST',
     token: ali.token,

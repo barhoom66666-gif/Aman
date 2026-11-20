@@ -97,9 +97,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
     if (phone == null) return;
-    final digits = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    final digits = phoneDigits(phone);
     if (digits.length < 7 || digits.length > 15) {
-      if (mounted) showError(context, 'أدخل رقمًا صحيحًا مع رمز الدولة (7 إلى 15 رقمًا)');
+      if (mounted) showError(context, 'أدخل الرقم مع رمز الدولة (7 إلى 15 رقمًا)، مثال: +971501234567');
       return;
     }
     try {
@@ -319,7 +319,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Center(
             child: Column(
               children: [
-                Text('Aman 0.2.0', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                Text('Aman 0.2.1', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
                 const SizedBox(height: 4),
                 Text(
                   'لا مكالمات · لا إعلانات · لا تتبّع',

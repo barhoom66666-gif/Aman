@@ -24,14 +24,32 @@ export function colorFor(seed) {
   return COLORS[h % COLORS.length];
 }
 
-/** يحوّل رقم الهاتف إلى أرقام فقط (بدون + أو مسافات) لتخزينه ومطابقته. */
+const EASTERN_ARABIC = '٠١٢٣٤٥٦٧٨٩';
+const PERSIAN = '۰۱۲۳۴۵۶۷۸۹';
+
+/** يحوّل رقم الهاتف إلى أرقام إنجليزية فقط، ويدعم الأرقام العربية والفارسية و+ والمسافات و00. */
 export function normalizePhone(value) {
-  return String(value ?? '').replace(/\D/g, '');
+  let out = '';
+  for (const ch of String(value ?? '')) {
+    const arabic = EASTERN_ARABIC.indexOf(ch);
+    if (arabic >= 0) {
+      out += String(arabic);
+      continue;
+    }
+    const persian = PERSIAN.indexOf(ch);
+    if (persian >= 0) {
+      out += String(persian);
+      continue;
+    }
+    if (ch >= '0' && ch <= '9') out += ch;
+  }
+  if (out.startsWith('00')) out = out.slice(2);
+  return out;
 }
 
-/** أرقام البحث: تسمح للمستخدم بكتابة المسافات أو + أو 00. */
+/** أرقام البحث: تسمح للمستخدم بكتابة المسافات أو + أو 00 أو أرقام عربية. */
 export function phoneQueryDigits(value) {
-  return normalizePhone(String(value ?? '').replace(/^00/, ''));
+  return normalizePhone(value);
 }
 
 /** scrypt password hashing: "<saltHex>:<hashHex>" */

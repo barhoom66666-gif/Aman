@@ -79,9 +79,20 @@ export function createRouter({ db, hub, mediaDir, maxMediaBytes }) {
   function userByIdentifier(identifier) {
     if (!identifier) return null;
     const username = String(identifier).toLowerCase();
-    return db
+    const digits = normalizePhone(identifier);
+    const exact = db
       .prepare('SELECT * FROM users WHERE username = ? OR (phone IS NOT NULL AND phone = ?)')
-      .get(username, normalizePhone(identifier));
+      .get(username, digits);
+    if (exact) return exact;
+
+    // تسامح مع من أدخل رقمه المحلي بدل الدولي (أو العكس): آخر 9 أرقام.
+    if (digits.length >= 8 && /^[+\d\s()-]+$/.test(String(identifier).trim())) {
+      const rows = db
+        .prepare('SELECT * FROM users WHERE phone IS NOT NULL AND phone LIKE ? LIMIT 2')
+        .all(`%${digits.slice(-9)}`);
+      if (rows.length === 1) return rows[0];
+    }
+    return null;
   }
 
   function freshUsername() {
@@ -159,9 +170,13 @@ export function createRouter({ db, hub, mediaDir, maxMediaBytes }) {
   router.post('/auth/register', (req, res) => {
     const phone = normalizePhone(req.body?.phone);
     if (phone.length < 7 || phone.length > 15) {
-      throw new HttpError(400, 'bad_phone', 'أدخل رقم هاتف صحيحًا (7 إلى 15 رقمًا مع رمز الدولة)');
+      throw new HttpError(
+        400,
+        'bad_phone',
+        'أدخل رقم الهاتف مع رمز الدولة (7 إلى 15 رقمًا)، مثال: +971501234567',
+      );
     }
-    const password = text(req.body?.password, { min: 8, max: 128, field: 'كلمة المرور' });
+    const password = text(req.body?.password, { min: 6, max: 128, field: 'كلمة المرور' });
     const displayName = text(req.body?.displayName, { max: 40, field: 'الاسم' });
     const identityKey = identityKeyOf(req.body?.identityKey);
 
@@ -240,7 +255,7 @@ export function createRouter({ db, hub, mediaDir, maxMediaBytes }) {
       if (next === '') {
         phone = null;
       } else if (next.length < 7 || next.length > 15) {
-        throw new HttpError(400, 'bad_phone', 'أدخل رقم هاتف صحيحًا (7 إلى 15 رقمًا مع رمز الدولة)');
+        throw new HttpError(400, 'bad_phone', 'أدخل رقم الهاتف مع رمز الدولة (7 إلى 15 رقمًا)، مثال: +971501234567');
       } else {
         const taken = db.prepare('SELECT 1 FROM users WHERE phone = ? AND id <> ?').get(next, req.user.id);
         if (taken) throw new HttpError(409, 'phone_taken', 'رقم الهاتف مسجّل لحساب آخر');
@@ -265,17 +280,18 @@ export function createRouter({ db, hub, mediaDir, maxMediaBytes }) {
     const safe = q.replace(/[%_]/g, '');
     const like = `%${safe}%`;
     const digits = phoneQueryDigits(q);
+    const alt = digits.replace(/^0+/, '') || digits;
     const rows =
       digits.length >= 3
         ? db
             .prepare(
               `SELECT * FROM users
                 WHERE id <> ?
-                  AND (username LIKE ? OR display_name LIKE ? OR (phone IS NOT NULL AND phone LIKE ?))
-                ORDER BY CASE WHEN phone = ? THEN 0 ELSE 1 END, username ASC
+                  AND (username LIKE ? OR display_name LIKE ? OR (phone IS NOT NULL AND (phone LIKE ? OR phone LIKE ?)))
+                ORDER BY CASE WHEN phone = ? OR phone = ? THEN 0 ELSE 1 END, username ASC
                 LIMIT 20`,
             )
-            .all(req.user.id, like, like, `%${digits}%`, digits)
+            .all(req.user.id, like, like, `%${digits}%`, `%${alt}%`, digits, alt)
         : db
             .prepare(
               `SELECT * FROM users
