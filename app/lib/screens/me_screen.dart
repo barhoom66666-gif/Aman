@@ -241,7 +241,7 @@ class _MeScreenState extends State<MeScreen> {
           _MenuTile(
             icon: Icons.info_outline_rounded,
             title: 'حول Aman',
-            subtitle: 'الإصدار 0.3.0',
+            subtitle: 'الإصدار 0.4.0',
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const AboutScreen()),
             ),
@@ -249,7 +249,7 @@ class _MeScreenState extends State<MeScreen> {
           const SizedBox(height: 18),
           Center(
             child: Text(
-              'Aman 0.3.0',
+              'Aman 0.4.0',
               style: TextStyle(fontSize: 11.5, color: scheme.onSurfaceVariant),
             ),
           ),
@@ -360,7 +360,7 @@ class AboutScreen extends StatelessWidget {
                 const SizedBox(height: 14),
                 Text('Aman', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 4),
-                Text('الإصدار 0.3.0', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                Text('الإصدار 0.4.0', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
               ],
             ),
           ),
@@ -374,9 +374,10 @@ class AboutScreen extends StatelessWidget {
           const Text(
             'المزايا الحالية:\n'
             '• محادثات فردية ومجموعات مشفّرة.\n'
-            '• البحث برقم الهاتف أو الاسم.\n'
-            '• إضافة الآخرين بمسح الباركود.\n'
+            '• إنشاء مجموعة بدون أعضاء، وإضافتهم لاحقًا.\n'
+            '• البحث برقم الهاتف أو الاسم، والباركود.\n'
             '• صور وملفات مشفّرة، مع ردود وقراءة.\n'
+            '• خلفيات محادثة وتثبيت للمحادثات.\n'
             '• لا يحتوي التطبيق على مكالمات صوتية أو فيديو.',
             style: TextStyle(fontSize: 13, height: 1.9),
           ),

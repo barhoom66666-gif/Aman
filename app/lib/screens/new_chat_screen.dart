@@ -241,7 +241,7 @@ class _GroupTabState extends State<_GroupTab> {
 
   Future<void> _create() async {
     final title = _title.text.trim();
-    if (title.isEmpty || _selected.isEmpty) return;
+    if (title.isEmpty) return;
     setState(() => _creating = true);
     final session = context.read<Session>();
     try {
@@ -314,8 +314,8 @@ class _GroupTabState extends State<_GroupTab> {
               ? const EmptyState(
                   icon: Icons.group_add_outlined,
                   title: 'أنشئ مجموعة',
-                  subtitle: 'اختر اسمًا للمجموعة، ثم ابحث برقم الهاتف أو الاسم وأضف الأعضاء. '
-                      'لا تحتاج إلى إضافتهم إلى جهات الاتصال أولًا.',
+                  subtitle: 'اختر اسمًا للمجموعة — يمكنك إضافة الأعضاء الآن أو لاحقًا. '
+                      'ابحث برقم الهاتف أو الاسم، ولا تحتاج إلى إضافتهم إلى جهات الاتصال أولًا.',
                 )
               : ListView.builder(
                   itemCount: _results.length,
@@ -362,13 +362,15 @@ class _GroupTabState extends State<_GroupTab> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'عدد الأعضاء المختارين: ${_selected.length}',
+                  _selected.isEmpty
+                      ? 'يمكنك إنشاء المجموعة الآن وإضافة الأعضاء لاحقًا'
+                      : 'عدد الأعضاء المختارين: ${_selected.length}',
                   style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
                 FilledButton.icon(
-                  onPressed: (_creating || _selected.isEmpty || _title.text.trim().isEmpty) ? null : _create,
+                  onPressed: (_creating || _title.text.trim().isEmpty) ? null : _create,
                   icon: _creating
                       ? const SizedBox(
                           width: 18,

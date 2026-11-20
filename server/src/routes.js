@@ -450,7 +450,6 @@ export function createRouter({ db, hub, mediaDir, maxMediaBytes }) {
       const user = userByName(String(name).toLowerCase());
       if (user && user.id !== req.user.id && !members.some((m) => m.id === user.id)) members.push(user);
     }
-    if (members.length === 0) throw new HttpError(400, 'bad_request', 'أضف عضوًا واحدًا على الأقل');
 
     const chatId = newId('c');
     const tx = db.transaction(() => {

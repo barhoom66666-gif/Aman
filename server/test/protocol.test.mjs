@@ -339,6 +339,21 @@ test('مجموعة: توزيع مفتاح المجموعة ورسالة جماع
   const sara = await register('sara_grp', 'سارة');
   const omar = await register('omar_grp', 'عمر');
 
+  const lone = await api('/api/chats/group', {
+    method: 'POST',
+    token: ali.token,
+    body: { title: 'مجموعة فارغة', members: [] },
+  });
+  assert.equal(lone.chat.members.length, 1);
+  assert.equal(lone.chat.members[0].username, 'ali_grp');
+  const loneAdded = await api(`/api/chats/${lone.chat.id}/members`, {
+    method: 'POST',
+    token: ali.token,
+    body: { usernames: ['sara_grp'] },
+  });
+  assert.equal(loneAdded.chat.members.length, 2);
+  assert.equal(loneAdded.chat.epoch, 2);
+
   const { chat } = await api('/api/chats/group', {
     method: 'POST',
     token: ali.token,

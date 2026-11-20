@@ -1,7 +1,7 @@
 name: aman
 description: "Aman — مراسلة خاصة ومشفّرة من الطرف إلى الطرف"
 publish_to: "none"
-version: 0.3.0+4
+version: 0.4.0+5
 
 environment:
   sdk: ">=3.9.0 <4.0.0"

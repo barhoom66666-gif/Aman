@@ -21,6 +21,7 @@ const _kUser = 'aman.user';
 const _kServer = 'aman.server';
 const _kTheme = 'aman.theme';
 const _kPins = 'aman.pins';
+const _kWalls = 'aman.wallpapers';
 
 class Session extends ChangeNotifier {
   static const _storage = FlutterSecureStorage(
@@ -37,6 +38,7 @@ class Session extends ChangeNotifier {
   bool connected = false;
   ThemeMode themeMode = ThemeMode.system;
   final Set<String> pinnedChatIds = {};
+  final Map<String, String> chatWallpapers = {};
 
   final Map<String, Chat> chats = {};
   final Map<String, List<Message>> messagesByChat = {};
@@ -76,6 +78,16 @@ class Session extends ChangeNotifier {
           pinnedChatIds.addAll((jsonDecode(savedPins) as List).cast<String>());
         } catch (_) {
           // تجاهل التخزين التالف بدل منع تسجيل الدخول
+        }
+      }
+      final savedWalls = await _storage.read(key: _kWalls);
+      if (savedWalls != null && savedWalls.isNotEmpty) {
+        try {
+          chatWallpapers.addAll(
+            (jsonDecode(savedWalls) as Map).map((key, value) => MapEntry('$key', '$value')),
+          );
+        } catch (_) {
+          // تجاهل التخزين التالف
         }
       }
 
@@ -198,6 +210,18 @@ class Session extends ChangeNotifier {
   Future<void> togglePin(String chatId) async {
     if (!pinnedChatIds.remove(chatId)) pinnedChatIds.add(chatId);
     await _storage.write(key: _kPins, value: jsonEncode(pinnedChatIds.toList()));
+    _notify();
+  }
+
+  String? wallpaperFor(String chatId) => chatWallpapers[chatId];
+
+  Future<void> setWallpaper(String chatId, String? style) async {
+    if (style == null || style.isEmpty || style == 'default') {
+      chatWallpapers.remove(chatId);
+    } else {
+      chatWallpapers[chatId] = style;
+    }
+    await _storage.write(key: _kWalls, value: jsonEncode(chatWallpapers));
     _notify();
   }
 

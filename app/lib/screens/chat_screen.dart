@@ -12,7 +12,9 @@ import '../models.dart';
 import '../theme.dart';
 import '../utils.dart';
 import '../widgets/avatar.dart';
+import '../widgets/chat_wallpaper.dart';
 import '../widgets/common.dart';
+import 'add_members_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key, required this.chatId});
@@ -164,6 +166,15 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  Future<void> _addMembers(String chatId) async {
+    final added = await showAddMembersSheet(context, chatId);
+    if (added == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تمت إضافة الأعضاء وتحديث مفتاح المجموعة')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = context.watch<Session>();
@@ -185,7 +196,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (typists.isNotEmpty) {
       subtitle = chat.isGroup ? 'يكتب أحد الأعضاء…' : 'يكتب…';
     } else if (chat.isGroup) {
-      subtitle = '${chat.members.length} أعضاء';
+      subtitle = chat.members.length == 1 ? 'عضو واحد' : '${chat.members.length} أعضاء';
     } else if (peer?.online == true) {
       subtitle = 'متصل الآن';
     } else {
@@ -244,48 +255,83 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
-          Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : messages.isEmpty
-                    ? const EmptyState(
-                        icon: Icons.lock_outline_rounded,
-                        title: 'محادثة مشفّرة',
-                        subtitle: 'الرسائل مشفّرة من الطرف إلى الطرف. اكتب أول رسالة.',
-                      )
-                    : ListView.builder(
-                        controller: _scroll,
-                        reverse: true,
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                        itemCount: messages.length,
-                        itemBuilder: (context, index) {
-                          final message = messages[messages.length - 1 - index];
-                          final older = index + 1 < messages.length ? messages[messages.length - 2 - index] : null;
-                          final mine = message.senderId == session.me?.id;
-                          final showDay = older == null || !isSameDay(older.createdAt, message.createdAt);
-                          final sender = chat.memberById(message.senderId);
-                          final readByPeer = !chat.isGroup &&
-                              peer != null &&
-                              peer.lastReadAt >= message.createdAt &&
-                              !message.pending;
-                          return Column(
-                            children: [
-                              if (showDay) _DaySeparator(millis: message.createdAt),
-                              _MessageBubble(
-                                message: message,
-                                mine: mine,
-                                showSender: chat.isGroup && !mine,
-                                senderName: sender?.displayName ?? '',
-                                senderColor: sender?.avatarColor ?? '#0E9F9A',
-                                readByPeer: readByPeer,
-                                onRetry: () => session.retry(message),
-                                onCopy: () => _copy(message),
-                                session: session,
-                              ),
-                            ],
-                          );
-                        },
+          if (chat.isGroup && chat.members.length <= 1)
+            Material(
+              color: scheme.primaryContainer.withValues(alpha: 0.5),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 10, 8),
+                child: Row(
+                  children: [
+                    Icon(Icons.group_add_outlined, size: 20, color: scheme.primary),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'أنت الوحيد في هذه المجموعة — أضف أعضاء ليبدأ التواصل.',
+                        style: TextStyle(fontSize: 12),
                       ),
+                    ),
+                    TextButton(
+                      onPressed: () => _addMembers(chat.id),
+                      child: const Text('إضافة'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          Expanded(
+            child: Container(
+              decoration: wallpaperDecoration(context, session.wallpaperFor(chat.id)),
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : messages.isEmpty
+                      ? EmptyState(
+                          icon: Icons.lock_outline_rounded,
+                          title: 'محادثة مشفّرة',
+                          subtitle: chat.isGroup && chat.members.length <= 1
+                              ? 'المجموعة جاهزة. أضف أعضاء، أو اكتب رسالة ترحيب.'
+                              : 'الرسائل مشفّرة من الطرف إلى الطرف. اكتب أول رسالة.',
+                          action: chat.isGroup && chat.members.length <= 1
+                              ? FilledButton.icon(
+                                  onPressed: () => _addMembers(chat.id),
+                                  icon: const Icon(Icons.person_add_alt_1_rounded),
+                                  label: const Text('إضافة أعضاء'),
+                                )
+                              : null,
+                        )
+                      : ListView.builder(
+                          controller: _scroll,
+                          reverse: true,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                          itemCount: messages.length,
+                          itemBuilder: (context, index) {
+                            final message = messages[messages.length - 1 - index];
+                            final older = index + 1 < messages.length ? messages[messages.length - 2 - index] : null;
+                            final mine = message.senderId == session.me?.id;
+                            final showDay = older == null || !isSameDay(older.createdAt, message.createdAt);
+                            final sender = chat.memberById(message.senderId);
+                            final readByPeer = !chat.isGroup &&
+                                peer != null &&
+                                peer.lastReadAt >= message.createdAt &&
+                                !message.pending;
+                            return Column(
+                              children: [
+                                if (showDay) _DaySeparator(millis: message.createdAt),
+                                _MessageBubble(
+                                  message: message,
+                                  mine: mine,
+                                  showSender: chat.isGroup && !mine,
+                                  senderName: sender?.displayName ?? '',
+                                  senderColor: sender?.avatarColor ?? '#0E9F9A',
+                                  readByPeer: readByPeer,
+                                  onRetry: () => session.retry(message),
+                                  onCopy: () => _copy(message),
+                                  session: session,
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+            ),
           ),
           if (typists.isNotEmpty)
             Padding(
@@ -668,88 +714,101 @@ class _ChatInfoSheetState extends State<_ChatInfoSheet> {
   bool _busy = false;
 
   Future<void> _addMembers(BuildContext context) async {
+    final added = await showAddMembersSheet(context, widget.chatId);
+    if (added == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تمت إضافة الأعضاء وتحديث مفتاح المجموعة')),
+      );
+    }
+  }
+
+  Future<void> _pickWallpaper(BuildContext context, Chat chat) async {
     final session = context.read<Session>();
-    final controller = TextEditingController();
-    List<User> results = [];
-    final selected = <String>{};
-
-    await showDialog<void>(
+    final current = session.wallpaperFor(chat.id);
+    final choice = await showModalBottomSheet<String>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) {
-          Future<void> search(String value) async {
-            if (value.trim().length < 2) {
-              setDialogState(() => results = []);
-              return;
-            }
-            try {
-              final rows = await session.api.searchUsers(value.trim());
-              setDialogState(() => results = rows.map(User.fromJson).toList());
-            } catch (_) {}
-          }
-
-          return AlertDialog(
-            title: const Text('إضافة أعضاء'),
-            content: SizedBox(
-              width: 360,
-              height: 380,
-              child: Column(
-                children: [
-                  TextField(
-                    controller: controller,
-                    onChanged: search,
-                    decoration: const InputDecoration(hintText: 'ابحث باسم المستخدم…'),
-                  ),
-                  const SizedBox(height: 8),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: results.length,
-                      itemBuilder: (context, index) {
-                        final user = results[index];
-                        return CheckboxListTile(
-                          value: selected.contains(user.username),
-                          onChanged: (v) {
-                            setDialogState(() {
-                              if (v == true) {
-                                selected.add(user.username);
-                              } else {
-                                selected.remove(user.username);
-                              }
-                            });
-                          },
-                          title: Text(user.displayName),
-                          subtitle: Text('@${user.username}', textDirection: TextDirection.ltr),
-                          secondary: Avatar(name: user.displayName, color: user.avatarColor, imageUrl: user.avatarUrl, size: 38),
-                        );
-                      },
+      showDragHandle: true,
+      builder: (sheetContext) {
+        final scheme = Theme.of(sheetContext).colorScheme;
+        final dark = Theme.of(sheetContext).brightness == Brightness.dark;
+        Widget swatch(String id, String label) {
+          final wallpaper = wallpaperById(id);
+          final selected = (current ?? 'default') == id;
+          final base = wallpaper == null
+              ? scheme.surfaceContainerHighest
+              : (dark ? wallpaper.dark : wallpaper.light);
+          return InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () => Navigator.of(sheetContext).pop(id),
+            child: Column(
+              children: [
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: wallpaper == null ? base : null,
+                      gradient: wallpaper == null
+                          ? null
+                          : wallpaperDecoration(sheetContext, wallpaper.id).gradient,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: selected ? scheme.primary : scheme.outlineVariant,
+                        width: selected ? 2.5 : 1,
+                      ),
                     ),
+                    child: selected
+                        ? Icon(Icons.check_circle_rounded, color: scheme.primary)
+                        : null,
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                  ),
+                ),
+              ],
             ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
-              FilledButton(
-                onPressed: selected.isEmpty
-                    ? null
-                    : () async {
-                        Navigator.pop(dialogContext);
-                        setState(() => _busy = true);
-                        try {
-                          await session.addMembers(widget.chatId, selected.toList());
-                        } catch (e) {
-                          if (mounted) showError(context, e);
-                        } finally {
-                          if (mounted) setState(() => _busy = false);
-                        }
-                      },
-                child: const Text('إضافة'),
-              ),
-            ],
           );
-        },
-      ),
+        }
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('خلفية المحادثة', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 3),
+                Text(
+                  'تظهر خلف الرسائل على هذا الجهاز فقط.',
+                  style: TextStyle(fontSize: 11.5, color: scheme.onSurfaceVariant),
+                ),
+                const SizedBox(height: 16),
+                GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 3,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 0.92,
+                  children: [
+                    swatch('default', 'افتراضي'),
+                    ...chatWallpapers.map((wallpaper) => swatch(wallpaper.id, wallpaper.name)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
+    if (choice == null) return;
+    await session.setWallpaper(chat.id, choice == 'default' ? null : choice);
   }
 
   Future<void> _leave(BuildContext context) async {
@@ -787,6 +846,8 @@ class _ChatInfoSheetState extends State<_ChatInfoSheet> {
     final scheme = Theme.of(context).colorScheme;
     if (chat == null) return const SizedBox.shrink();
     final peer = chat.isGroup ? null : chat.peerFor(session.me?.id ?? '');
+    final pinned = session.isPinned(chat.id);
+    final wallpaper = wallpaperById(session.wallpaperFor(chat.id));
 
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
@@ -813,32 +874,81 @@ class _ChatInfoSheetState extends State<_ChatInfoSheet> {
               ),
               const SizedBox(height: 4),
               Text(
-                chat.isGroup ? '${chat.members.length} أعضاء · جيل التشفير ${chat.epoch}' : 'محادثة فردية مشفّرة',
+                chat.isGroup
+                    ? (chat.members.length == 1
+                        ? 'عضو واحد · جيل التشفير ${chat.epoch}'
+                        : '${chat.members.length} أعضاء · جيل التشفير ${chat.epoch}')
+                    : userHandle(phone: peer?.phone, username: peer?.username ?? ''),
                 textAlign: TextAlign.center,
+                textDirection: chat.isGroup ? null : TextDirection.ltr,
                 style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
               ),
-              const SizedBox(height: 20),
-              if (chat.isGroup) ...[
-                Text('الأعضاء', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 8),
-                ...chat.members.map(
-                  (member) => ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Avatar(
-                      name: member.displayName,
-                      color: member.avatarColor,
-                      imageUrl: member.avatarUrl,
-                      size: 40,
-                      online: member.online,
+              const SizedBox(height: 18),
+              Card(
+                elevation: 0,
+                color: scheme.surfaceContainerHighest.withValues(alpha: 0.35),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: Icon(pinned ? Icons.push_pin_rounded : Icons.push_pin_outlined),
+                      title: const Text('تثبيت المحادثة'),
+                      subtitle: Text(pinned ? 'مثبتة في أعلى القائمة' : 'غير مثبتة'),
+                      trailing: Switch(
+                        value: pinned,
+                        onChanged: (_) => session.togglePin(chat.id),
+                      ),
                     ),
-                    title: Text(member.displayName),
-                    subtitle: Text(userHandle(phone: member.phone, username: member.username), textDirection: TextDirection.ltr),
-                    trailing: member.id == chat.createdBy
-                        ? const Chip(label: Text('منشئ', style: TextStyle(fontSize: 10)), visualDensity: VisualDensity.compact)
-                        : null,
-                  ),
+                    Divider(height: 1, indent: 56, color: scheme.outlineVariant.withValues(alpha: 0.5)),
+                    ListTile(
+                      leading: const Icon(Icons.wallpaper_rounded),
+                      title: const Text('خلفية المحادثة'),
+                      subtitle: Text(wallpaper?.name ?? 'افتراضي'),
+                      trailing: const Icon(Icons.chevron_left_rounded, size: 18),
+                      onTap: () => _pickWallpaper(context, chat),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              if (chat.isGroup) ...[
+                Row(
+                  children: [
+                    Text(
+                      'الأعضاء',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${chat.members.length}',
+                      style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
+                Wrap(
+                  spacing: 14,
+                  runSpacing: 14,
+                  children: [
+                    for (final member in chat.members)
+                      _MemberBubble(
+                        member: member,
+                        isCreator: member.id == chat.createdBy,
+                      ),
+                    _AddMemberBubble(
+                      onTap: _busy ? null : () => _addMembers(context),
+                    ),
+                  ],
+                ),
+                if (chat.members.length <= 1)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Text(
+                      'لا يوجد أعضاء غيرك بعد. أضف أعضاء ليبدأ التواصل.',
+                      style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                    ),
+                  ),
+                const SizedBox(height: 18),
                 OutlinedButton.icon(
                   onPressed: _busy ? null : () => _addMembers(context),
                   icon: const Icon(Icons.person_add_alt_1_outlined),
@@ -850,21 +960,107 @@ class _ChatInfoSheetState extends State<_ChatInfoSheet> {
                   icon: Icon(Icons.logout_rounded, color: scheme.error),
                   label: Text('مغادرة المجموعة', style: TextStyle(color: scheme.error)),
                 ),
-              ] else
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.lock_rounded, size: 14, color: scheme.primary),
-                    const SizedBox(width: 6),
-                    Text(
-                      'التشفير من الطرف إلى الطرف مُفعّل',
-                      style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-                    ),
-                  ],
+              ] else ...[
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: scheme.primaryContainer.withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.lock_rounded, size: 16, color: scheme.primary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'التشفير من الطرف إلى الطرف مُفعّل. الرسائل والصور والملفات لا يراها الخادم.',
+                          style: TextStyle(fontSize: 11.5, height: 1.6, color: scheme.onSurfaceVariant),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+              ],
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _MemberBubble extends StatelessWidget {
+  const _MemberBubble({required this.member, required this.isCreator});
+
+  final User member;
+  final bool isCreator;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: 68,
+      child: Column(
+        children: [
+          Avatar(
+            name: member.displayName,
+            color: member.avatarColor,
+            imageUrl: member.avatarUrl,
+            size: 54,
+            online: member.online,
+          ),
+          const SizedBox(height: 5),
+          Text(
+            member.displayName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+          ),
+          if (isCreator)
+            Text(
+              'منشئ',
+              style: TextStyle(fontSize: 9.5, color: scheme.primary),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AddMemberBubble extends StatelessWidget {
+  const _AddMemberBubble({this.onTap});
+
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: 68,
+      child: Column(
+        children: [
+          InkWell(
+            onTap: onTap,
+            customBorder: const CircleBorder(),
+            child: Container(
+              width: 54,
+              height: 54,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: scheme.primary.withValues(alpha: 0.6), width: 1.5),
+                color: scheme.primary.withValues(alpha: 0.08),
+              ),
+              child: Icon(Icons.person_add_alt_1_rounded, size: 23, color: scheme.primary),
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            'إضافة',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11, color: scheme.primary),
+          ),
+        ],
       ),
     );
   }
