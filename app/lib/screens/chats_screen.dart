@@ -502,12 +502,12 @@ class _ChatTile extends StatelessWidget {
 
   String _preview() {
     final message = chat.lastMessage;
-    if (message == null) {
-      return chat.isGroup ? 'مجموعة مشفّرة' : 'تغيير مؤقت التدمير الذاتي';
+    if (message == null || message.isAdminNotice) {
+      return 'تغيير مؤقت التدمير الذاتي';
     }
     String body;
     if (message.undecryptable) {
-      body = 'رسالة مشفّرة';
+      body = 'تغيير مؤقت التدمير الذاتي';
     } else if (message.isMedia) {
       body = (message.media?.isImage ?? true) ? '[صورة]' : '[ملف]';
     } else {

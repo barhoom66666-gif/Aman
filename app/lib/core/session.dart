@@ -62,6 +62,9 @@ class Session extends ChangeNotifier {
   final Set<String> mutedCallChatIds = {};
   final Map<String, String> chatSelfDestruct = {};
   final Map<String, String> chatAdminMessage = {};
+  final Map<String, List<AdminNotice>> chatAdminNotices = {};
+  final Set<String> seenAdminNoticeIds = {};
+  final Set<String> dismissedAdminBannerIds = {};
   final Map<String, String> chatTask = {};
   final Set<String> starredMessageIds = {};
   final List<Map<String, dynamic>> personalNotes = [];
@@ -301,6 +304,28 @@ class Session extends ChangeNotifier {
         ..clear()
         ..addAll((map['chatAdminMessage'] as Map).map((k, v) => MapEntry('$k', '$v')));
     }
+    if (map['chatAdminNotices'] is Map) {
+      chatAdminNotices.clear();
+      for (final entry in (map['chatAdminNotices'] as Map).entries) {
+        final rawList = entry.value;
+        if (rawList is List) {
+          chatAdminNotices['${entry.key}'] = rawList
+              .whereType<Map>()
+              .map((m) => AdminNotice.fromJson(m.cast<String, dynamic>()))
+              .toList();
+        }
+      }
+    }
+    if (map['seenAdminNoticeIds'] is List) {
+      seenAdminNoticeIds
+        ..clear()
+        ..addAll((map['seenAdminNoticeIds'] as List).map((e) => '$e'));
+    }
+    if (map['dismissedAdminBannerIds'] is List) {
+      dismissedAdminBannerIds
+        ..clear()
+        ..addAll((map['dismissedAdminBannerIds'] as List).map((e) => '$e'));
+    }
     if (map['chatTask'] is Map) {
       chatTask
         ..clear()
@@ -345,6 +370,11 @@ class Session extends ChangeNotifier {
       'mutedCallChatIds': mutedCallChatIds.toList(),
       'chatSelfDestruct': chatSelfDestruct,
       'chatAdminMessage': chatAdminMessage,
+      'chatAdminNotices': chatAdminNotices.map(
+        (key, list) => MapEntry(key, list.map((n) => n.toJson()).toList()),
+      ),
+      'seenAdminNoticeIds': seenAdminNoticeIds.toList(),
+      'dismissedAdminBannerIds': dismissedAdminBannerIds.toList(),
       'chatTask': chatTask,
       'starredMessageIds': starredMessageIds.toList(),
       'personalNotes': personalNotes,
@@ -368,18 +398,145 @@ class Session extends ChangeNotifier {
     await savePrefs();
   }
 
-  String selfDestructFor(String chatId) => chatSelfDestruct[chatId] ?? 'أسبوع واحد';
+  String selfDestructFor(String chatId) => chatSelfDestruct[chatId] ?? '٤ أسابيع';
 
   Future<void> setSelfDestructFor(String chatId, String value) async {
     chatSelfDestruct[chatId] = value;
     await savePrefs();
   }
 
-  String adminMessageFor(String chatId) => chatAdminMessage[chatId] ?? 'تفتيش';
+  List<AdminNotice> adminNoticesFor(String chatId, {bool includeArchived = false}) {
+    final list = chatAdminNotices[chatId] ?? const [];
+    final filtered = includeArchived ? [...list] : list.where((n) => !n.archived).toList();
+    filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return filtered;
+  }
+
+  AdminNotice? latestAdminNoticeFor(String chatId) {
+    final list = adminNoticesFor(chatId);
+    return list.isEmpty ? null : list.first;
+  }
+
+  String adminMessageFor(String chatId) {
+    final latest = latestAdminNoticeFor(chatId);
+    if (latest != null) return latest.title;
+    return chatAdminMessage[chatId] ?? '';
+  }
 
   Future<void> setAdminMessageFor(String chatId, String value) async {
     chatAdminMessage[chatId] = value;
     await savePrefs();
+  }
+
+  bool isAdminNoticeSeen(String noticeId) => seenAdminNoticeIds.contains(noticeId);
+
+  Future<void> markAdminNoticeSeen(String noticeId) async {
+    if (seenAdminNoticeIds.add(noticeId)) {
+      await savePrefs();
+    }
+  }
+
+  bool isAdminBannerDismissed(String noticeId) => dismissedAdminBannerIds.contains(noticeId);
+
+  Future<void> dismissAdminBanner(String noticeId) async {
+    if (dismissedAdminBannerIds.add(noticeId)) {
+      await savePrefs();
+    }
+  }
+
+  void _upsertLocalAdminNotice(AdminNotice notice, {bool notify = true}) {
+    final list = chatAdminNotices.putIfAbsent(notice.chatId, () => []);
+    final idx = list.indexWhere((n) => n.id == notice.id);
+    if (idx >= 0) {
+      list[idx] = notice;
+    } else {
+      list.insert(0, notice);
+    }
+    list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    // إزالة الإخفاء السابق عند تعديل الرسالة أو نشر رسالة جديدة
+    dismissedAdminBannerIds.remove(notice.id);
+    unawaited(savePrefs());
+    if (notify) _notify();
+  }
+
+  Future<AdminNotice> publishAdminNotice({
+    required String chatId,
+    required String title,
+    required String body,
+    String? noticeId,
+  }) async {
+    final chat = chats[chatId];
+    if (chat == null || me == null) {
+      throw ApiException(0, 'not_found', 'المحادثة غير متاحة');
+    }
+    final id = (noticeId != null && noticeId.isNotEmpty) ? noticeId : _uuid.v4();
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final notice = AdminNotice(
+      id: id,
+      chatId: chatId,
+      senderId: me!.id,
+      senderName: me!.displayName,
+      title: title.trim(),
+      body: body.trim(),
+      createdAt: nowMs,
+      archived: false,
+    );
+    // عند التعديل، نحذف حالة المشاهدة حتى تظهر للأعضاء من جديد
+    seenAdminNoticeIds.remove(id);
+    _upsertLocalAdminNotice(notice, notify: false);
+
+    // بث رسالة المشرف المشفّرة إلى أعضاء المجموعة
+    final clientId = _uuid.v4();
+    final message = Message(
+      id: 'local_$clientId',
+      chatId: chatId,
+      senderId: me!.id,
+      kind: 'text',
+      envelope: const {},
+      createdAt: nowMs,
+      clientId: clientId,
+      text: '__admin_notice__:${notice.title}',
+      adminNotice: notice,
+      pending: true,
+    );
+    _appendLocal(chat, message);
+    await _dispatch(chat, message, {
+      't': 'admin_notice',
+      'notice': notice.toJson(),
+    });
+    return notice;
+  }
+
+  Future<void> archiveAdminNotice(String chatId, String noticeId) async {
+    final list = chatAdminNotices[chatId];
+    if (list == null) return;
+    final idx = list.indexWhere((n) => n.id == noticeId);
+    if (idx < 0) return;
+    final updated = list[idx].copyWith(archived: true);
+    list[idx] = updated;
+    await savePrefs();
+
+    final chat = chats[chatId];
+    if (chat != null && me != null) {
+      final clientId = _uuid.v4();
+      final message = Message(
+        id: 'local_$clientId',
+        chatId: chatId,
+        senderId: me!.id,
+        kind: 'text',
+        envelope: const {},
+        createdAt: DateTime.now().millisecondsSinceEpoch,
+        clientId: clientId,
+        text: '__admin_notice__:${updated.title}',
+        adminNotice: updated,
+        pending: true,
+      );
+      _appendLocal(chat, message);
+      unawaited(_dispatch(chat, message, {
+        't': 'admin_notice',
+        'notice': updated.toJson(),
+      }));
+    }
   }
 
   String taskFor(String chatId) => chatTask[chatId] ?? '';
@@ -506,7 +663,8 @@ class Session extends ChangeNotifier {
 
   // ---------- الرسائل ----------
 
-  List<Message> messagesOf(String chatId) => messagesByChat[chatId] ?? const [];
+  List<Message> messagesOf(String chatId) =>
+      (messagesByChat[chatId] ?? const []).where((m) => !m.isAdminNotice).toList();
 
   Future<void> loadMessages(String chatId) async {
     final chat = chats[chatId];
@@ -514,6 +672,9 @@ class Session extends ChangeNotifier {
     final local = await LocalDb.loadMessages(chatId);
     final list = messagesByChat.putIfAbsent(chatId, () => []);
     for (final m in local) {
+      if (m.adminNotice != null) {
+        _upsertLocalAdminNotice(m.adminNotice!, notify: false);
+      }
       if (!list.any((x) => x.id == m.id || (m.clientId != null && x.clientId == m.clientId))) {
         list.add(m);
       }
@@ -572,7 +733,7 @@ class Session extends ChangeNotifier {
       message.undecryptable = true;
     }
     await LocalDb.saveMessage(message);
-    if (chats[chat.id] != null) {
+    if (!message.isAdminNotice && chats[chat.id] != null) {
       final current = chats[chat.id]!;
       if (current.lastMessage == null || message.createdAt >= current.lastMessage!.createdAt) {
         chats[chat.id] = current.copyWith(lastMessage: message, updatedAt: message.createdAt);
@@ -628,6 +789,11 @@ class Session extends ChangeNotifier {
         message.text = payload['body'] as String? ?? '';
       } else if (payload['t'] == 'media') {
         message.media = MediaInfo.fromJson(payload);
+      } else if (payload['t'] == 'admin_notice' && payload['notice'] is Map) {
+        final notice = AdminNotice.fromJson((payload['notice'] as Map).cast<String, dynamic>());
+        message.adminNotice = notice;
+        message.text = '__admin_notice__:${notice.title}';
+        _upsertLocalAdminNotice(notice, notify: false);
       }
     } catch (e) {
       debugPrint('decrypt failed: $e');
@@ -859,7 +1025,7 @@ class Session extends ChangeNotifier {
     await LocalDb.saveMessage(message);
     await LocalDb.dequeue(message.clientId!);
     final current = chats[chat.id];
-    if (current != null) {
+    if (current != null && !message.isAdminNotice) {
       chats[chat.id] = current.copyWith(lastMessage: message, updatedAt: message.createdAt);
       await LocalDb.saveChat(chats[chat.id]!);
     }
@@ -884,7 +1050,9 @@ class Session extends ChangeNotifier {
     final list = messagesByChat.putIfAbsent(chat.id, () => []);
     list.add(message);
     list.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-    chats[chat.id] = chat.copyWith(lastMessage: message, updatedAt: message.createdAt);
+    if (!message.isAdminNotice) {
+      chats[chat.id] = chat.copyWith(lastMessage: message, updatedAt: message.createdAt);
+    }
     unawaited(LocalDb.saveMessage(message));
     unawaited(LocalDb.saveChat(chats[chat.id]!));
     _notify();

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -13,8 +14,8 @@ import '../theme.dart';
 import '../utils.dart';
 import '../widgets/avatar.dart';
 import '../widgets/chat_wallpaper.dart';
-import '../widgets/common.dart';
 import 'add_members_screen.dart';
+import 'admin_message_screen.dart';
 import 'me_screen.dart';
 import 'qr_screen.dart';
 import 'tools_screens.dart';
@@ -36,6 +37,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _loading = true;
   String _searchQuery = '';
   bool _searching = false;
+  bool _popupShowing = false;
 
   @override
   void didChangeDependencies() {
@@ -56,6 +58,7 @@ class _ChatScreenState extends State<ChatScreen> {
     await _session.markRead(widget.chatId);
     if (mounted) setState(() => _loading = false);
     _jumpToBottom();
+    _checkUnseenAdminNotice();
   }
 
   void _onSessionChanged() {
@@ -64,6 +67,36 @@ class _ChatScreenState extends State<ChatScreen> {
     if (chat != null && chat.unreadCount > 0 && ModalRoute.of(context)?.isCurrent == true) {
       _session.markRead(widget.chatId);
     }
+    _checkUnseenAdminNotice();
+  }
+
+  void _checkUnseenAdminNotice() {
+    if (!mounted || _popupShowing || ModalRoute.of(context)?.isCurrent != true) return;
+    final chat = _session.chats[widget.chatId];
+    if (chat == null || !chat.isGroup) return;
+    final notice = _session.latestAdminNoticeFor(widget.chatId);
+    if (notice == null) return;
+    if (_session.isAdminNoticeSeen(notice.id)) return;
+
+    _popupShowing = true;
+    _session.markAdminNoticeSeen(notice.id);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        _popupShowing = false;
+        return;
+      }
+      await showAdminNoticePopup(
+        context,
+        notice: notice,
+        isMine: notice.senderId == _session.me?.id,
+        onShowAll: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => AdminMessageListScreen(chatId: widget.chatId)),
+          );
+        },
+      );
+      _popupShowing = false;
+    });
   }
 
   @override
@@ -91,9 +124,9 @@ class _ChatScreenState extends State<ChatScreen> {
     _jumpToBottom();
   }
 
-  Future<void> _pickImage() async {
+  Future<void> _pickImage(ImageSource source) async {
     final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 88, maxWidth: 2048);
+    final picked = await picker.pickImage(source: source, imageQuality: 88, maxWidth: 2048);
     if (picked == null) return;
     final bytes = await picked.readAsBytes();
     if (!mounted) return;
@@ -126,10 +159,18 @@ class _ChatScreenState extends State<ChatScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.image_outlined),
-              title: const Text('صورة'),
+              title: const Text('صورة من المعرض'),
               onTap: () {
                 Navigator.pop(context);
-                _pickImage();
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('التقاط صورة'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.camera);
               },
             ),
             ListTile(
@@ -198,13 +239,45 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _addMembers(String chatId) async {
-    final added = await showAddMembersSheet(context, chatId);
-    if (added == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تمت إضافة الأعضاء وتحديث مفتاح المجموعة')),
-      );
+  Future<void> _pickSelfDestructDialog(Session session, Chat chat) async {
+    const options = ['إيقاف', 'ساعة واحدة', '24 ساعة', 'أسبوع واحد', '٤ أسابيع'];
+    final current = session.selfDestructFor(chat.id);
+    final chosen = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Text('رسائل التدمير الذاتي', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            ),
+            ...options.map(
+              (opt) => ListTile(
+                title: Text(opt),
+                trailing: opt == current
+                    ? Icon(Icons.check_rounded, color: Theme.of(ctx).colorScheme.primary)
+                    : null,
+                onTap: () => Navigator.pop(ctx, opt),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (chosen != null) {
+      await session.setSelfDestructFor(chat.id, chosen);
     }
+  }
+
+  String _timerBadgeText(String selfDestruct) {
+    if (selfDestruct.contains('٤') || selfDestruct.contains('4')) return '٤أ';
+    if (selfDestruct.contains('أسبوع')) return '١أ';
+    if (selfDestruct.contains('24') || selfDestruct.contains('٢٤')) return '١ي';
+    if (selfDestruct.contains('ساعة')) return '١س';
+    return '';
   }
 
   @override
@@ -212,6 +285,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final session = context.watch<Session>();
     final chat = session.chats[widget.chatId];
     final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (chat == null) {
       return Scaffold(
@@ -228,17 +302,11 @@ class _ChatScreenState extends State<ChatScreen> {
             .toList();
     final typists = session.typistsIn(chat.id);
     final peer = chat.isGroup ? null : chat.peerFor(session.me?.id ?? '');
-
-    String subtitle;
-    if (typists.isNotEmpty) {
-      subtitle = chat.isGroup ? 'يكتب أحد الأعضاء…' : 'يكتب…';
-    } else if (chat.isGroup) {
-      subtitle = chat.members.length == 1 ? 'عضو واحد' : '${chat.members.length} عضو';
-    } else if (peer?.online == true) {
-      subtitle = 'متصل الآن';
-    } else {
-      subtitle = lastSeenText(peer?.lastSeen ?? 0);
-    }
+    final selfDestruct = session.selfDestructFor(chat.id);
+    final timerBadge = _timerBadgeText(selfDestruct);
+    final latestNotice = chat.isGroup ? session.latestAdminNoticeFor(chat.id) : null;
+    final showTopAdminBanner =
+        latestNotice != null && !session.isAdminBannerDismissed(latestNotice.id);
 
     return Scaffold(
       appBar: AppBar(
@@ -261,159 +329,471 @@ class _ChatScreenState extends State<ChatScreen> {
               )
             : InkWell(
                 onTap: () => _openChatInfo(chat),
-                borderRadius: BorderRadius.circular(10),
-                child: Row(
-                  children: [
-                    Avatar(
-                      name: chat.title,
-                      color: chat.avatarColor,
-                      imageUrl: peer?.avatarUrl,
-                      size: 40,
-                      online: peer?.online ?? false,
-                      icon: chat.isGroup ? Icons.groups_rounded : null,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.lock_outline_rounded, size: 14, color: scheme.onSurfaceVariant),
-                              const SizedBox(width: 4),
-                              Flexible(
-                                child: Text(
-                                  chat.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      // صورة المحادثة مع شارة مؤقت التدمير الذاتي الدائرية المنقطة كما في JERNAS
+                      SizedBox(
+                        width: 46,
+                        height: 44,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Positioned(
+                              right: 0,
+                              top: 1,
+                              child: Avatar(
+                                name: chat.title,
+                                color: chat.avatarColor,
+                                imageUrl: peer?.avatarUrl,
+                                size: 40,
+                                online: peer?.online ?? false,
+                                icon: chat.isGroup ? Icons.groups_rounded : null,
+                              ),
+                            ),
+                            if (timerBadge.isNotEmpty)
+                              Positioned(
+                                left: -2,
+                                bottom: -1,
+                                child: Container(
+                                  width: 21,
+                                  height: 21,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).scaffoldBackgroundColor,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: scheme.onSurfaceVariant,
+                                      width: 1.3,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    timerBadge,
+                                    style: TextStyle(
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: scheme.onSurface,
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ],
-                          ),
-                          Text(
-                            subtitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              color: typists.isNotEmpty ? scheme.primary : scheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      Icon(Icons.lock_outline_rounded, size: 17, color: scheme.onSurfaceVariant),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              chat.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                            ),
+                            if (typists.isNotEmpty)
+                              Text(
+                                chat.isGroup ? 'يكتب أحد الأعضاء…' : 'يكتب…',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 11.5, color: scheme.primary),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
         actions: [
           IconButton(
-            onPressed: () => _openChatInfo(chat),
-            icon: const Icon(Icons.more_horiz_rounded),
+            tooltip: 'مكالمة مشفّرة',
+            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('مكالمة صوتية مشفّرة')),
+            ),
+            icon: const Icon(Icons.call_outlined, size: 24),
           ),
+          const SizedBox(width: 6),
         ],
       ),
       body: Column(
         children: [
-          if (chat.isGroup && chat.members.length <= 1)
+          // شريط رسالة المشرف المثبت في أعلى المحادثة كما في صورة JERNAS
+          if (showTopAdminBanner)
             Material(
-              color: scheme.primaryContainer.withValues(alpha: 0.5),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 10, 8),
-                child: Row(
-                  children: [
-                    Icon(Icons.group_add_outlined, size: 20, color: scheme.primary),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'أنت الوحيد في هذه المجموعة — أضف أعضاء ليبدأ التواصل.',
-                        style: TextStyle(fontSize: 12),
+              color: isDark ? const Color(0xFF1A1E2A) : scheme.surfaceContainerHighest,
+              child: InkWell(
+                onTap: () => showAdminNoticePopup(
+                  context,
+                  notice: latestNotice,
+                  isMine: latestNotice.senderId == session.me?.id,
+                  onShowAll: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => AdminMessageListScreen(chatId: chat.id)),
+                    );
+                  },
+                ),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(10, 9, 16, 9),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: scheme.outlineVariant.withValues(alpha: 0.5),
+                        width: 0.7,
                       ),
                     ),
-                    TextButton(
-                      onPressed: () => _addMembers(chat.id),
-                      child: const Text('إضافة'),
-                    ),
-                  ],
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.campaign_outlined,
+                        color: Color(0xFF6B7BFF),
+                        size: 26,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              latestNotice.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 1),
+                            Text(
+                              latestNotice.body,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        tooltip: 'إخفاء الشريط',
+                        onPressed: () => session.dismissAdminBanner(latestNotice.id),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          size: 20,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
+
           Expanded(
-            child: Container(
-              decoration: wallpaperDecoration(context, session.wallpaperFor(chat.id)),
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : messages.isEmpty
-                      ? EmptyState(
-                          icon: Icons.lock_outline_rounded,
-                          title: 'محادثة مشفّرة',
-                          subtitle: chat.isGroup && chat.members.length <= 1
-                              ? 'المجموعة جاهزة. أضف أعضاء، أو اكتب رسالة ترحيب.'
-                              : 'الرسائل مشفّرة من الطرف إلى الطرف. اكتب أول رسالة.',
-                          action: chat.isGroup && chat.members.length <= 1
-                              ? FilledButton.icon(
-                                  onPressed: () => _addMembers(chat.id),
-                                  icon: const Icon(Icons.person_add_alt_1_rounded),
-                                  label: const Text('إضافة أعضاء'),
-                                )
-                              : null,
-                        )
-                      : ListView.builder(
-                          controller: _scroll,
-                          reverse: true,
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                          itemCount: messages.length,
-                          itemBuilder: (context, index) {
-                            final message = messages[messages.length - 1 - index];
-                            final older =
-                                index + 1 < messages.length ? messages[messages.length - 2 - index] : null;
-                            final mine = message.senderId == session.me?.id;
-                            final showDay = older == null || !isSameDay(older.createdAt, message.createdAt);
-                            final sender = chat.memberById(message.senderId);
-                            final readByPeer = !chat.isGroup &&
-                                peer != null &&
-                                peer.lastReadAt >= message.createdAt &&
-                                !message.pending;
-                            return Column(
-                              children: [
-                                if (showDay) _DaySeparator(millis: message.createdAt),
-                                _MessageBubble(
-                                  message: message,
-                                  mine: mine,
-                                  showSender: chat.isGroup && !mine,
-                                  senderName: sender?.displayName ?? '',
-                                  senderColor: sender?.avatarColor ?? '#6B7BFF',
-                                  readByPeer: readByPeer,
-                                  starred: session.isStarred(message.id),
-                                  onRetry: () => session.retry(message),
-                                  onLongPress: () => _onMessageAction(message),
-                                  session: session,
-                                ),
-                              ],
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // خلفية المحادثة مع نقش أيقونات JERNAS الخفيف
+                Container(
+                  decoration: wallpaperDecoration(context, session.wallpaperFor(chat.id)),
+                  child: CustomPaint(
+                    painter: _JernasDoodlePainter(isDark: isDark),
+                  ),
+                ),
+                _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : ListView.builder(
+                        controller: _scroll,
+                        reverse: true,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                        itemCount: messages.length + 1,
+                        itemBuilder: (context, index) {
+                          // بطاقات النظام العلوية (التشفير + اليوم + إنشاء المجموعة + التدمير الذاتي)
+                          if (index == messages.length) {
+                            return _JernasSystemHeader(
+                              chat: chat,
+                              isCreator: chat.createdBy == session.me?.id,
+                              selfDestruct: selfDestruct,
+                              onTapSelfDestruct: () => _pickSelfDestructDialog(session, chat),
                             );
-                          },
-                        ),
+                          }
+                          final message = messages[messages.length - 1 - index];
+                          final older =
+                              index + 1 < messages.length ? messages[messages.length - 2 - index] : null;
+                          final mine = message.senderId == session.me?.id;
+                          final showDay = older != null && !isSameDay(older.createdAt, message.createdAt);
+                          final sender = chat.memberById(message.senderId);
+                          final readByPeer = !chat.isGroup &&
+                              peer != null &&
+                              peer.lastReadAt >= message.createdAt &&
+                              !message.pending;
+                          return Column(
+                            children: [
+                              if (showDay) _DaySeparator(millis: message.createdAt),
+                              _MessageBubble(
+                                message: message,
+                                mine: mine,
+                                showSender: chat.isGroup && !mine,
+                                senderName: sender?.displayName ?? '',
+                                senderColor: sender?.avatarColor ?? '#6B7BFF',
+                                readByPeer: readByPeer,
+                                starred: session.isStarred(message.id),
+                                onRetry: () => session.retry(message),
+                                onLongPress: () => _onMessageAction(message),
+                                session: session,
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+              ],
             ),
           ),
-          if (typists.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text(
-                chat.isGroup ? 'أحد الأعضاء يكتب…' : 'يكتب…',
-                style: TextStyle(fontSize: 11.5, color: scheme.primary),
-              ),
-            ),
           _Composer(
             controller: _input,
             onChanged: _onInputChanged,
             onSend: _send,
             onAttach: _showAttachSheet,
+            onCamera: () => _pickImage(ImageSource.camera),
           ),
         ],
       ),
     );
   }
+}
+
+/// بطاقات النظام في بداية المحادثة كما في صورة JERNAS:
+/// 1) بطاقة التشفير بقفل أزرق
+/// 2) شارة "اليوم" و"أنت أنشأت هذه المجموعة"
+/// 3) بطاقة مؤقت التدمير الذاتي مع رابط "انقر للتغيير."
+class _JernasSystemHeader extends StatelessWidget {
+  const _JernasSystemHeader({
+    required this.chat,
+    required this.isCreator,
+    required this.selfDestruct,
+    required this.onTapSelfDestruct,
+  });
+
+  final Chat chat;
+  final bool isCreator;
+  final String selfDestruct;
+  final VoidCallback onTapSelfDestruct;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark
+        ? const Color(0xFF1F2330).withValues(alpha: 0.94)
+        : scheme.surfaceContainerHighest.withValues(alpha: 0.9);
+    final pillColor = isDark
+        ? const Color(0xFF232736).withValues(alpha: 0.95)
+        : scheme.surfaceContainerHighest;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14, top: 4),
+      child: Column(
+        children: [
+          // بطاقة التشفير
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.lock_outline_rounded,
+                  color: Color(0xFF6B7BFF),
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'الرسائل مشفرة بالكامل. لا يمكن لأي شخص خارج هذه المحادثة ولا حتى AMAN يمكنه قراءتها أو الاستماع إليها.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      height: 1.45,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          // شارة اليوم
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+            decoration: BoxDecoration(
+              color: pillColor,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Text(
+              'اليوم',
+              style: TextStyle(
+                fontSize: 12.5,
+                color: scheme.onSurfaceVariant,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          if (chat.isGroup) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              decoration: BoxDecoration(
+                color: pillColor,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Text(
+                isCreator ? 'أنت أنشأت هذه المجموعة' : 'تمت إضافتك إلى هذه المجموعة',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          // بطاقة مؤقت التدمير الذاتي
+          InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: onTapSelfDestruct,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+              decoration: BoxDecoration(
+                color: cardColor,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.history_toggle_off_rounded,
+                    color: Color(0xFF6B7BFF),
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: RichText(
+                      textAlign: TextAlign.center,
+                      text: TextSpan(
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          height: 1.45,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                        children: [
+                          TextSpan(
+                            text: selfDestruct == 'إيقاف'
+                                ? 'مؤقت التدمير الذاتي للرسائل متوقف حاليًا في هذه الدردشة. '
+                                : 'الوقت الافتراضي للتدمير الذاتي هو $selfDestruct. ستختفي جميع الرسائل الجديدة من هذه الدردشة بعد $selfDestruct. ',
+                          ),
+                          const TextSpan(
+                            text: 'انقر للتغيير.',
+                            style: TextStyle(
+                              color: Color(0xFF6B7BFF),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// رسام نقش خلفية المحادثة الخفيف (أقفال، فقاعات، هواتف، شموس) كما في خلفية JERNAS.
+class _JernasDoodlePainter extends CustomPainter {
+  const _JernasDoodlePainter({required this.isDark});
+
+  final bool isDark;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final color = isDark
+        ? Colors.white.withValues(alpha: 0.032)
+        : Colors.black.withValues(alpha: 0.035);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+
+    const cell = 76.0;
+    final cols = (size.width / cell).ceil();
+    final rows = (size.height / cell).ceil();
+
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        final cx = c * cell + (r.isOdd ? cell * 0.5 : cell * 0.25);
+        final cy = r * cell + cell * 0.45;
+        final kind = (r * 3 + c) % 4;
+        if (kind == 0) {
+          // قفل صغير
+          final rect = RRect.fromRectAndRadius(
+            Rect.fromCenter(center: Offset(cx, cy + 4), width: 18, height: 14),
+            const Radius.circular(3),
+          );
+          canvas.drawRRect(rect, paint);
+          canvas.drawArc(
+            Rect.fromCenter(center: Offset(cx, cy - 3), width: 11, height: 11),
+            math.pi,
+            math.pi,
+            false,
+            paint,
+          );
+        } else if (kind == 1) {
+          // فقاعة محادثة دائرية
+          canvas.drawOval(
+            Rect.fromCenter(center: Offset(cx, cy), width: 20, height: 16),
+            paint,
+          );
+        } else if (kind == 2) {
+          // بطاقة مستطيلة
+          final rect = RRect.fromRectAndRadius(
+            Rect.fromCenter(center: Offset(cx, cy), width: 20, height: 14),
+            const Radius.circular(2.5),
+          );
+          canvas.drawRRect(rect, paint);
+          canvas.drawLine(Offset(cx - 10, cy - 2), Offset(cx + 10, cy - 2), paint);
+        } else {
+          // شمس/نجمة صغيرة
+          canvas.drawCircle(Offset(cx, cy), 5.5, paint);
+          for (var i = 0; i < 8; i++) {
+            final angle = i * math.pi / 4;
+            final p1 = Offset(cx + math.cos(angle) * 8, cy + math.sin(angle) * 8);
+            final p2 = Offset(cx + math.cos(angle) * 10.5, cy + math.sin(angle) * 10.5);
+            canvas.drawLine(p1, p2, paint);
+          }
+        }
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _JernasDoodlePainter oldDelegate) =>
+      oldDelegate.isDark != isDark;
 }
 
 class _DaySeparator extends StatelessWidget {
@@ -690,80 +1070,147 @@ class _ImageViewer extends StatelessWidget {
   }
 }
 
-class _Composer extends StatelessWidget {
+/// شريط كتابة الرسالة السفلي المطابق لتصميم JERNAS:
+/// كبسولة موحدة بداخلها (إيموجي، حقل "رسالة"، زر توسيع، كاميرا، +، وزر الميكروفون/الإرسال الدائري البنفسجي).
+class _Composer extends StatefulWidget {
   const _Composer({
     required this.controller,
     required this.onChanged,
     required this.onSend,
     required this.onAttach,
+    required this.onCamera,
   });
 
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
   final VoidCallback onSend;
   final VoidCallback onAttach;
+  final VoidCallback onCamera;
+
+  @override
+  State<_Composer> createState() => _ComposerState();
+}
+
+class _ComposerState extends State<_Composer> {
+  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final chat = Theme.of(context).extension<ChatColors>() ?? ChatColors.light(scheme);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final barColor = isDark ? const Color(0xFF1F2330) : scheme.surfaceContainerHighest;
+
     return SafeArea(
       top: false,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(6, 6, 6, 8),
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          border: Border(top: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.4), width: 0.6)),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            IconButton(
-              onPressed: onAttach,
-              icon: Icon(Icons.add_circle_outline_rounded, color: scheme.primary),
-            ),
-            Expanded(
-              child: TextField(
-                controller: controller,
-                onChanged: onChanged,
-                minLines: 1,
-                maxLines: 5,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: InputDecoration(
-                  hintText: 'رسالة…',
-                  filled: true,
-                  fillColor: chat.composerField,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(22),
-                    borderSide: BorderSide.none,
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(22),
-                    borderSide: BorderSide.none,
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(22),
-                    borderSide: BorderSide.none,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          decoration: BoxDecoration(
+            color: barColor,
+            borderRadius: BorderRadius.circular(30),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // أيقونة الإيموجي على اليمين
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                onPressed: () {
+                  widget.controller.text = '${widget.controller.text}😊';
+                  widget.controller.selection = TextSelection.fromPosition(
+                    TextPosition(offset: widget.controller.text.length),
+                  );
+                  widget.onChanged(widget.controller.text);
+                },
+                icon: Icon(
+                  Icons.sentiment_satisfied_alt_rounded,
+                  color: scheme.onSurfaceVariant,
+                  size: 25,
+                ),
+              ),
+              // حقل كتابة الرسالة
+              Expanded(
+                child: TextField(
+                  controller: widget.controller,
+                  onChanged: widget.onChanged,
+                  minLines: _expanded ? 3 : 1,
+                  maxLines: _expanded ? 8 : 5,
+                  textCapitalization: TextCapitalization.sentences,
+                  style: const TextStyle(fontSize: 16),
+                  decoration: InputDecoration(
+                    hintText: 'رسالة',
+                    hintStyle: TextStyle(color: scheme.onSurfaceVariant, fontSize: 16),
+                    filled: false,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 6),
-            ValueListenableBuilder<TextEditingValue>(
-              valueListenable: controller,
-              builder: (context, value, _) {
-                final active = value.text.trim().isNotEmpty;
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 2),
-                  child: IconButton.filled(
-                    onPressed: active ? onSend : null,
-                    icon: const Icon(Icons.send_rounded, size: 20),
-                  ),
-                );
-              },
-            ),
-          ],
+              // زر التوسيع، الكاميرا، والإرفاق (+)
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                tooltip: 'توسيع الحقل',
+                onPressed: () => setState(() => _expanded = !_expanded),
+                icon: Icon(
+                  _expanded ? Icons.fullscreen_exit_rounded : Icons.crop_free_rounded,
+                  color: scheme.onSurfaceVariant,
+                  size: 21,
+                ),
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                tooltip: 'كاميرا',
+                onPressed: widget.onCamera,
+                icon: Icon(
+                  Icons.camera_alt_outlined,
+                  color: scheme.onSurfaceVariant,
+                  size: 23,
+                ),
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                tooltip: 'إرفاق',
+                onPressed: widget.onAttach,
+                icon: Icon(
+                  Icons.add_circle_outline_rounded,
+                  color: scheme.onSurfaceVariant,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 4),
+              // الزر الدائري البنفسجي على اليسار (ميكروفون عند الفراغ، وإرسال عند الكتابة)
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: widget.controller,
+                builder: (context, value, _) {
+                  final hasText = value.text.trim().isNotEmpty;
+                  return InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: hasText
+                        ? widget.onSend
+                        : () => ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('اكتب رسالتك لإرسالها مشفّرة')),
+                            ),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF6B7BFF),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        hasText ? Icons.send_rounded : Icons.mic_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -792,7 +1239,7 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
     }
   }
 
-  Future<void> _editAdminText(
+  Future<void> _editTaskText(
     BuildContext context, {
     required String title,
     required String initial,
@@ -822,7 +1269,7 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
   }
 
   Future<void> _pickSelfDestruct(BuildContext context, Session session, String chatId) async {
-    const options = ['إيقاف', 'ساعة واحدة', '24 ساعة', 'أسبوع واحد', 'شهر واحد'];
+    const options = ['إيقاف', 'ساعة واحدة', '24 ساعة', 'أسبوع واحد', '٤ أسابيع'];
     final current = session.selfDestructFor(chatId);
     final chosen = await showModalBottomSheet<String>(
       context: context,
@@ -1028,11 +1475,8 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
                   ? null
                   : Text(adminMsg, style: TextStyle(fontSize: 13.5, color: scheme.onSurfaceVariant)),
               trailing: Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
-              onTap: () => _editAdminText(
-                context,
-                title: 'رسالة المشرف',
-                initial: adminMsg,
-                onSaved: (v) => session.setAdminMessageFor(chat.id, v),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => AdminMessageListScreen(chatId: chat.id)),
               ),
             ),
             ListTile(
@@ -1042,7 +1486,7 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
                   ? null
                   : Text(taskMsg, style: TextStyle(fontSize: 13.5, color: scheme.onSurfaceVariant)),
               trailing: Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
-              onTap: () => _editAdminText(
+              onTap: () => _editTaskText(
                 context,
                 title: 'مهمة المجموعة',
                 initial: taskMsg,

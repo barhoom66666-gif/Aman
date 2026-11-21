@@ -13,18 +13,32 @@ String formatTime(int millis) {
   return DateFormat('HH:mm', 'ar').format(date);
 }
 
-/// تنسيق وقت المحادثات بأسلوب JERNAS: "HH:mm" لليوم، "أمس" للأمس، و"نوفمبر ٠٥" للتواريخ الأقدم.
+/// تنسيق وقت المحادثات بأسلوب JERNAS: "٧:٤٠ ص" لليوم، "أمس" للأمس، و"نوفمبر ٠٥" للتواريخ الأقدم.
 String formatChatTime(int millis) {
   final date = DateTime.fromMillisecondsSinceEpoch(millis);
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
   final day = DateTime(date.year, date.month, date.day);
   final diff = today.difference(day).inDays;
-  if (diff == 0) return DateFormat('HH:mm', 'ar').format(date);
+  if (diff == 0) {
+    final hour12 = date.hour % 12 == 0 ? 12 : date.hour % 12;
+    final min = date.minute.toString().padLeft(2, '0');
+    final period = date.hour < 12 ? 'ص' : 'م';
+    return '${_toArabicIndicDigits('$hour12:$min')} $period';
+  }
   if (diff == 1) return 'أمس';
   final month = DateFormat('MMMM', 'ar').format(date);
   final dayNum = _toArabicIndicDigits(date.day.toString().padLeft(2, '0'));
   return '$month $dayNum';
+}
+
+String formatRelativeAdminTime(int millis) {
+  if (millis <= 0) return 'الآن فقط';
+  final diff = DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(millis));
+  if (diff.inMinutes < 2) return 'الآن فقط';
+  if (diff.inMinutes < 60) return 'منذ ${diff.inMinutes} دقيقة';
+  if (diff.inHours < 24) return 'منذ ${diff.inHours} ساعة';
+  return formatChatTime(millis);
 }
 
 String _toArabicIndicDigits(String input) {

@@ -224,6 +224,67 @@ class MediaInfo {
       };
 }
 
+class AdminNotice {
+  final String id;
+  final String chatId;
+  final String senderId;
+  final String senderName;
+  final String title;
+  final String body;
+  final int createdAt;
+  final bool archived;
+
+  AdminNotice({
+    required this.id,
+    required this.chatId,
+    required this.senderId,
+    required this.senderName,
+    required this.title,
+    required this.body,
+    required this.createdAt,
+    this.archived = false,
+  });
+
+  AdminNotice copyWith({
+    String? title,
+    String? body,
+    int? createdAt,
+    bool? archived,
+  }) =>
+      AdminNotice(
+        id: id,
+        chatId: chatId,
+        senderId: senderId,
+        senderName: senderName,
+        title: title ?? this.title,
+        body: body ?? this.body,
+        createdAt: createdAt ?? this.createdAt,
+        archived: archived ?? this.archived,
+      );
+
+  factory AdminNotice.fromJson(Map<String, dynamic> json) => AdminNotice(
+        id: json['id'] as String? ?? '',
+        chatId: json['chatId'] as String? ?? '',
+        senderId: json['senderId'] as String? ?? '',
+        senderName: json['senderName'] as String? ?? 'مشرف',
+        title: json['title'] as String? ?? '',
+        body: json['body'] as String? ?? '',
+        createdAt: (json['createdAt'] as num?)?.toInt() ?? 0,
+        archived: json['archived'] as bool? ?? false,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'chatId': chatId,
+        'senderId': senderId,
+        'senderName': senderName,
+        'title': title,
+        'body': body,
+        'createdAt': createdAt,
+        'archived': archived,
+      };
+}
+
 class Message {
   String id;
   final String chatId;
@@ -237,6 +298,7 @@ class Message {
   // الحالة المحلية (لا تُرسل للخادم)
   String? text;
   MediaInfo? media;
+  AdminNotice? adminNotice;
   String? localPath;
   bool pending;
   bool failed;
@@ -253,6 +315,7 @@ class Message {
     this.clientId,
     this.text,
     this.media,
+    this.adminNotice,
     this.localPath,
     this.pending = false,
     this.failed = false,
@@ -260,6 +323,7 @@ class Message {
   });
 
   bool get isMedia => kind == 'media';
+  bool get isAdminNotice => adminNotice != null || (text != null && text!.startsWith('__admin_notice__:'));
 
   factory Message.fromJson(Map<String, dynamic> json) => Message(
         id: json['id'] as String,
@@ -274,6 +338,9 @@ class Message {
         media: json['media'] is Map<String, dynamic>
             ? MediaInfo.fromJson(json['media'] as Map<String, dynamic>)
             : null,
+        adminNotice: json['adminNotice'] is Map<String, dynamic>
+            ? AdminNotice.fromJson(json['adminNotice'] as Map<String, dynamic>)
+            : null,
       );
 
   Map<String, dynamic> toJson() => {
@@ -287,6 +354,7 @@ class Message {
         'clientId': clientId,
         if (text != null) 'text': text,
         if (media != null) 'media': media!.toJson(),
+        if (adminNotice != null) 'adminNotice': adminNotice!.toJson(),
       };
 }
 
